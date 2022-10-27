@@ -12,3 +12,14 @@ with the interface and protocol exposed by a subprocess that can recieve and tra
 raw TPM2 command and response buffers. The interface exposed by this library is defined
 in the \*(lqTSS System Level API and TPM Command Transmission Interface
 Specification\*(rq specification.
+.SH EXAMPLES
+.sp
+For example, this could be used with the tpm2_send command:
+.nf
+tpm2_getrandom -T "cmd:tpm2_send -s" --hex 4"
+.fi
+.sp
+And used accross a network like so:
+.nf
+tpm2_getrandom -T "cmd:ssh remotehost tpm2_send -s --hex 4"
+.fi
