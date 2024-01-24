@@ -78,7 +78,11 @@ echo "Generating file lists: ${VARS_FILE}"
 
   src_listvar "src/tss2-policy" "*.c" "TSS2_POLICY_C"
   src_listvar "src/tss2-policy" "*.h" "TSS2_POLICY_H"
-  printf "TSS2_POLICY_SRC = \$(TSS2_POLICY_C) \$(TSS2_POLICY_H)"
+  printf "TSS2_POLICY_SRC = \$(TSS2_POLICY_C) \$(TSS2_POLICY_H)\n"
+  
+  src_listvar "src/tss2-mu-yaml" "*.c" "TSS2_MU_YAML_C"
+  src_listvar "src/tss2-mu-yaml" "*.h" "TSS2_MU_YAML_H"
+  printf "TSS2_MU_YAML_SRC = \$(TSS2_MU_YAML_C) \$(TSS2_MU_YAML_H)"
 ) > ${VARS_FILE}
 
 # Do not generate fuzz tests unless environment variable GEN_FUZZ is set to 1

@@ -15,7 +15,11 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])]) #Backward compatible setti
 
 AC_CONFIG_HEADERS([config.h])
 
-AC_CONFIG_FILES([Makefile Doxyfile lib/tss2-sys.pc lib/tss2-esys.pc lib/tss2-mu.pc lib/tss2-tcti-device.pc lib/tss2-tcti-mssim.pc lib/tss2-tcti-swtpm.pc lib/tss2-tcti-pcap.pc lib/tss2-tcti-libtpms.pc lib/tss2-rc.pc lib/tss2-tctildr.pc lib/tss2-fapi.pc lib/tss2-tcti-cmd.pc lib/tss2-policy.pc lib/tss2-tcti-spi-helper.pc lib/tss2-tcti-spi-ltt2go.pc lib/tss2-tcti-spidev.pc lib/tss2-tcti-spi-ftdi.pc lib/tss2-tcti-i2c-helper.pc lib/tss2-tcti-i2c-ftdi.pc])
+AC_CONFIG_FILES([Makefile Doxyfile lib/tss2-sys.pc lib/tss2-esys.pc lib/tss2-mu.pc lib/tss2-tcti-device.pc \
+    lib/tss2-tcti-mssim.pc lib/tss2-tcti-swtpm.pc lib/tss2-tcti-pcap.pc lib/tss2-tcti-libtpms.pc lib/tss2-rc.pc \
+    lib/tss2-tctildr.pc lib/tss2-fapi.pc lib/tss2-tcti-cmd.pc lib/tss2-policy.pc lib/tss2-tcti-spi-helper.pc \
+    lib/tss2-tcti-spi-ltt2go.pc lib/tss2-tcti-spidev.pc lib/tss2-tcti-spi-ftdi.pc lib/tss2-tcti-i2c-helper.pc \
+    lib/tss2-tcti-i2c-ftdi.pc lib/tss2-mu-yaml.pc ])
 
 # propagate configure arguments to distcheck
 AC_SUBST([DISTCHECK_CONFIGURE_FLAGS],[$ac_configure_args])
@@ -158,6 +162,17 @@ AC_ARG_ENABLE([policy],
             [enable_policy=yes])
 
 AM_CONDITIONAL(POLICY, test "x$enable_policy" = "xyes")
+
+AC_ARG_ENABLE([mu-yaml],
+            [AS_HELP_STRING([--disable-mu-yaml],
+                            [build the tss2-mu-yaml library (default is yes)])],
+            [enable_mu_yaml=$enableval],
+            [enable_mu_yaml=yes])
+
+AM_CONDITIONAL(MU_YAML, test "x$enable_mu_yaml" = "xyes")
+
+AS_IF([test "x$enable_mu_yaml" = "xyes"],
+           [PKG_CHECK_MODULES([YAML], [yaml-0.1])])
 
 AC_ARG_WITH([crypto],
             [AS_HELP_STRING([--with-crypto={ossl,mbed,none}],
@@ -754,4 +769,5 @@ AC_MSG_RESULT([
     tcti_spidev         $enable_tcti_spidev
     tcti_spi_ftdi       $enable_tcti_spi_ftdi
     tcti_i2c_ftdi       $enable_tcti_i2c_ftdi
+    tss2-mu-yaml        $enable_mu_yaml
 ])

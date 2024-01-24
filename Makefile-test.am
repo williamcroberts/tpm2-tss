@@ -171,6 +171,7 @@ TESTS_UNIT += \
     test/unit/fapi-check-ima-log
 
 endif FAPI
+
 endif #UNIT
 
 if ENABLE_INTEGRATION
@@ -1068,6 +1069,17 @@ test_unit_tss2_policy_LDADD   = $(CMOCKA_LIBS) $(libtss2_policy) $(libtss2_esys)
 test_unit_tss2_policy_SOURCES = test/unit/tss2_policy.c src/util/log.c \
     test/data/test-fapi-policies.h
 endif # POLICY
+
+if MU_YAML
+TESTS_UNIT += \
+    test/unit/mu-yaml
+
+test_unit_mu_yaml_CFLAGS  = $(CMOCKA_CFLAGS) $(TESTS_CFLAGS)
+test_unit_mu_yaml_LDADD   = $(CMOCKA_LIBS) $(libtss2_mu_yaml)
+test_unit_mu_yaml_SOURCES = test/unit/mu-yaml.c \
+    test/unit/mu-yaml-tpm2b-simple.c \
+    src/util/log.c
+endif # MY_YAML
 
 endif # UNIT
 

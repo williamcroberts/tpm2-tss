@@ -665,6 +665,26 @@ src_tss2_policy_libtss2_policy_la_SOURCES = $(TSS2_POLICY_SRC) \
 EXTRA_DIST += lib/tss2-policy.map lib/tss2-policy.def
 endif
 
+### TSS MU YAML library ###
+if MU_YAML
+libtss2_mu_yaml = src/tss2-mu-yaml/libtss2-mu-yaml.la
+tss2_HEADERS += $(srcdir)/include/tss2/tss2_mu_yaml.h
+lib_LTLIBRARIES += $(libtss2_mu_yaml)
+pkgconfig_DATA += lib/tss2-mu-yaml.pc
+
+src_tss2_mu_yaml_libtss2_mu_yaml_la_CFLAGS = $(AM_CFLAGS) -I$(srcdir)/src/tss2-mu-yaml \
+    $(YAML_CFLAGS)
+src_tss2_mu_yaml_libtss2_mu_yaml_la_LIBADD  = $(YAML_LIBS)
+
+if HAVE_LD_VERSION_SCRIPT
+src_tss2_mu_yaml_libtss2_mu_yaml_la_LDFLAGS = -Wl,--version-script=$(srcdir)/lib/tss2-mu-yaml.map
+endif # HAVE_LD_VERSION_SCRIPT
+
+src_tss2_mu_yaml_libtss2_mu_yaml_la_SOURCES = $(TSS2_MU_YAML_SRC)
+
+EXTRA_DIST += lib/tss2-mu-yaml.map lib/tss2-mu-yaml.def
+endif
+
 ### TCG TSS FAPI spec library ###
 if FAPI
 fapiconfdir = @sysconfdir@/tpm2-tss

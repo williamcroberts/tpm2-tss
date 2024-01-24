@@ -207,6 +207,8 @@ typedef uint32_t TSS2_RC;
                                                      TSS2_BASE_RC_BAD_VALUE))
 #define TSS2_MU_RC_INSUFFICIENT_BUFFER          ((TSS2_RC)(TSS2_MU_RC_LAYER | \
                                                      TSS2_BASE_RC_INSUFFICIENT_BUFFER))
+#define TSS2_MU_RC_MEMORY                      ((TSS2_RC)(TSS2_MU_RC_LAYER | \
+                                                      TSS2_BASE_RC_MEMORY))
 
 /* ESAPI Error Codes */
 #define TSS2_ESYS_RC_GENERAL_FAILURE             ((TSS2_RC)(TSS2_ESAPI_RC_LAYER | \
