@@ -18,6 +18,10 @@
         return_if_null(src, "src is NULL", TSS2_MU_RC_BAD_REFERENCE); \
         return_if_null(output, "output is NULL", TSS2_MU_RC_BAD_REFERENCE); \
         \
+        if (src->size == 0) { \
+            *output = NULL; \
+            return TSS2_RC_SUCCESS; \
+        } \
         rc = doc_init(&doc); \
         return_if_error(rc, "Could not initialize document"); \
         \
@@ -47,6 +51,9 @@
                 yaml_len = strlen(yaml); \
             } \
             \
+            if (yaml_len == 0) { \
+                return TSS2_MU_RC_BAD_VALUE; \
+            } \
             type tmp_dest = MAX_LEN_STATIC_INIT(tmp_dest, field); \
             key_value parsed_data = KVP_ADD_TPM2B("buffer", &tmp_dest); \
             \

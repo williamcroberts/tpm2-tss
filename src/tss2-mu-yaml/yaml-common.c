@@ -369,7 +369,6 @@ static TSS2_RC handle_scalar(const yaml_event_t *e, key_value *dest, size_t dest
         assert(state->cur);
         assert(state->state == parser_state_value);
         return TSS2_RC_SUCCESS;
-
     }
 
     /* handling the value */
@@ -429,8 +428,12 @@ yaml_handle_event(const yaml_event_t *e, key_value *dest, size_t dest_len, parse
             state->state = parser_state_key;
             return TSS2_RC_SUCCESS;
         case YAML_MAPPING_END_EVENT:
-            /* We better end a mapping event after getting the value */
-            if (state->state != parser_state_mapping_end) {
+            /*
+             * We better end a mapping event after getting the value OR
+             * the mapping better be empty
+             */
+            if (!(state->state == parser_state_mapping_end ||
+                    state->state == parser_state_key)) {
                 return TSS2_MU_RC_GENERAL_FAILURE;
             }
             /* back to handling anything */
@@ -482,6 +485,13 @@ TSS2_RC yaml_parse(const char *yaml, size_t size, key_value *dest, size_t dest_l
         }
 
     } while(event.type != YAML_STREAM_END_EVENT);
+
+    if (state.handled != dest_len) {
+        LOG_ERROR("Did not find all of expected data fields, got: %zu expected %zu",
+                state.handled, dest_len);
+        rc = TSS2_MU_RC_BAD_VALUE;
+        goto error;
+    }
 
     rc = TSS2_RC_SUCCESS;
 
