@@ -31,7 +31,7 @@
             return TSS2_MU_RC_GENERAL_FAILURE; \
         } \
         \
-        struct key_value kv = KVP_ADD_TPM2B("buffer", src); \
+        struct key_value kv = KVP_ADD_TPM2B(#field, src); \
         rc = add_kvp(&doc, root, &kv); \
         return_if_error(rc, "Could not add KVP"); \
         \
@@ -55,7 +55,7 @@
                 return TSS2_MU_RC_BAD_VALUE; \
             } \
             type tmp_dest = MAX_LEN_STATIC_INIT(tmp_dest, field); \
-            key_value parsed_data = KVP_ADD_TPM2B("buffer", &tmp_dest); \
+            key_value parsed_data = KVP_ADD_TPM2B(#field, &tmp_dest); \
             \
             TSS2_RC rc = yaml_parse(yaml, yaml_len, &parsed_data, 1); \
             if (rc == TSS2_RC_SUCCESS) { \
