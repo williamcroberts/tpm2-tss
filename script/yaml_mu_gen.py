@@ -142,9 +142,55 @@ def callable_tpm2b_defines():
         print(f"SIMPLE_TPM2B_UNMARSHAL({name}, {field})")
 
 
-def callable_tpms_types():
+def get_tpms_simple():
+    l = []
     for _, obj in inspect.getmembers(tpm2_pytss):
-        if inspect.isclass(obj) and obj.__name__.startswith("TPMS"):
+        if (
+            inspect.isclass(obj)
+            and obj.__name__.startswith("TPMS")
+            and obj.__name__ != "TPMS_ALGORITHM_DESCRIPTION"
+        ):
+            x = obj()
+            fields = [
+                f
+                for f in dir(x)
+                if not f.startswith("_") and not f == "marshal" and not f == "unmarshal"
+            ]
+
+            fields = [getattr(x, f) for f in fields]
+
+            all_scalars = True
+            for f in fields:
+                if not isinstance(f, int):
+                    all_scalars = False
+                    break
+
+            if not all_scalars:
+                continue
+
+            l.append(obj.__name__)
+    return l
+
+
+def callable_tpms_complex_types():
+    simples = get_tpms_simple()
+    for _, obj in inspect.getmembers(tpm2_pytss):
+        if (
+            inspect.isclass(obj)
+            and obj.__name__.startswith("TPMS")
+            and obj.__name__ not in simples
+        ):
+            print(obj.__name__)
+
+
+def callable_tpms_simple_types():
+    for s in get_tpms_simple():
+        print(s)
+
+
+def callable_tpmu_types():
+    for _, obj in inspect.getmembers(tpm2_pytss):
+        if inspect.isclass(obj) and obj.__name__.startswith("TPMU"):
             print(obj.__name__)
 
 
