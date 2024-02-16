@@ -96,28 +96,29 @@ def callable_tpm2b_tests():
 
         sys.stdout.write(t)
 
+def print_proto(name):
+    t = textwrap.dedent(
+        f"""
+        TSS2_RC
+        Tss2_MU_YAML_{name}_Marshal(
+            {name} const *src,
+            char            **output);
+
+        TSS2_RC
+        Tss2_MU_YAML_{name}_Unmarshal(
+            char const      buffer[],
+            size_t          buffer_size,
+            {name}   *dest);
+    """
+    )
+
+    sys.stdout.write(t)
 
 def callable_tpm2b_protos():
     subclasses = get_subclasses(TPM2B_SIMPLE_OBJECT, package=tpm2_pytss)
     for s in subclasses:
         name = s.__name__
-
-        t = textwrap.dedent(
-            f"""
-            TSS2_RC
-            Tss2_MU_YAML_{name}_Marshal(
-                {name} const *src,
-                char            **output);
-
-            TSS2_RC
-            Tss2_MU_YAML_{name}_Unmarshal(
-                char const      buffer[],
-                size_t          buffer_size,
-                {name}   *dest);
-        """
-        )
-
-        sys.stdout.write(t)
+        print_proto(name)
 
 
 def callable_tpm2b_test_list():
@@ -186,6 +187,23 @@ def callable_tpms_complex_types():
 def callable_tpms_simple_types():
     for s in get_tpms_simple():
         print(s)
+
+def callable_tpms_types():
+    for _, obj in inspect.getmembers(tpm2_pytss):
+        if (
+            inspect.isclass(obj)
+            and obj.__name__.startswith("TPMS")
+        ):
+            print(obj.__name__)
+
+def callable_tpms_protos():
+    for _, obj in inspect.getmembers(tpm2_pytss):
+        if (
+            inspect.isclass(obj)
+            and obj.__name__.startswith("TPMS")
+        ):
+
+            print_proto(obj.__name__)
 
 
 def callable_tpmu_types():

@@ -168,7 +168,21 @@ static int add_datum(yaml_document_t *doc, const datum *d) {
         value = yaml_add_str(doc, d->as.str);
         break;
     case data_type_y64:
-        value = yaml_add_yaml_64(doc, &d->as.y64);
+        if (d->as.y64.tostring) {
+            assert (d->as.y64.sign == 0);
+            char *s = NULL;
+            TSS2_RC rc = d->as.y64.tostring(d->as.y64.u, &s);
+            if (rc == TSS2_MU_RC_BAD_VALUE) {
+                value = yaml_add_yaml_64(doc, &d->as.y64);
+            } else if (rc != TSS2_RC_SUCCESS) {
+                return 0;
+            } else {
+                value = yaml_add_str(doc, s);
+                free(s);
+            }
+        } else {
+            value = yaml_add_yaml_64(doc, &d->as.y64);
+        }
         break;
     default:
         LOG_ERROR("Unknown type: %u", d->type);
@@ -196,7 +210,7 @@ TSS2_RC add_kvp(yaml_document_t *doc, int root, const key_value *k) {
     return yaml_to_tss2_rc(yaml_document_append_mapping_pair(doc, root, key, value));
 }
 
-static TSS2_RC add_kvp_list(yaml_document_t *doc, int root, const key_value *kvs, size_t len) {
+TSS2_RC add_kvp_list(yaml_document_t *doc, int root, const key_value *kvs, size_t len) {
 
     size_t i;
     for(i=0; i < len; i++) {

@@ -1078,6 +1078,7 @@ test_unit_mu_yaml_CFLAGS  = $(CMOCKA_CFLAGS) $(TESTS_CFLAGS)
 test_unit_mu_yaml_LDADD   = $(CMOCKA_LIBS) $(libtss2_mu_yaml)
 test_unit_mu_yaml_SOURCES = test/unit/mu-yaml.c \
     test/unit/mu-yaml-tpm2b-simple.c \
+    test/unit/mu-yaml-tpms.c \
     src/util/log.c
 endif # MY_YAML
 

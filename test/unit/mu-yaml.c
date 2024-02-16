@@ -227,6 +227,8 @@ test_TPM2B_TEMPLATE_zero(void **state);
 void
 test_TPM2B_TEMPLATE_null(void **state);
 
+// BILL
+void test_TPMS_ALG_PROPERTY_good(void **state);
 
 int
 main(int argc, char *argv[])
@@ -302,7 +304,8 @@ main(int argc, char *argv[])
             cmocka_unit_test(test_TPM2B_TEMPLATE_good),
             cmocka_unit_test(test_TPM2B_TEMPLATE_zero),
             cmocka_unit_test(test_TPM2B_TEMPLATE_null),
-
+            /* bill */
+            cmocka_unit_test(test_TPMS_ALG_PROPERTY_good),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
