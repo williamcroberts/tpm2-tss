@@ -6,8 +6,6 @@
 
 #include "util/aux_util.h"
 
-static TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
-
     static struct {
         TPM2_ALG_ID id;
         const char *value;
@@ -54,6 +52,8 @@ static TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
         { TPM2_ALG_ECB,            "ecb"           },
     };
 
+static TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
+
     size_t i;
     for (i=0; i < ARRAY_LEN(alg_table); i++) {
         if (alg_table[i].id == id) {
@@ -67,6 +67,50 @@ static TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
     }
 
     return TSS2_MU_RC_BAD_VALUE;
+}
+
+static TSS2_RC TPM2_ALG_ID_fromstring(char *alg, TPM2_ALG_ID *d) {
+
+    size_t i;
+    for (i=0; i < ARRAY_LEN(alg_table); i++) {
+        if (alg_table[i].value == alg) {
+            *d = alg_table[i].id;
+            return TSS2_RC_SUCCESS;
+        }
+    }
+
+    return TSS2_MU_RC_BAD_VALUE;
+}
+
+static TSS2_RC TPMA_ALGORITHM_fromstring(char *str, TPMA_ALGORITHM *d) {
+
+    char *saveptr;
+    char *token = strtok_r(str, ",", &saveptr);
+
+    while (token != NULL) {
+
+        if (!strcmp(token, "asymmetric")) {
+            *d |= TPMA_ALGORITHM_ASYMMETRIC;
+        } else if (!strcmp(token, "symmetric")) {
+            *d |= TPMA_ALGORITHM_SYMMETRIC;
+        } else if (!strcmp(token, "hash")) {
+            *d |= TPMA_ALGORITHM_HASH;
+        } else if (!strcmp(token, "object")) {
+            *d |= TPMA_ALGORITHM_OBJECT;
+        } else if (!strcmp(token, "signing")) {
+            *d |= TPMA_ALGORITHM_SIGNING;
+        } else if (!strcmp(token, "encrypting")) {
+            *d |= TPMA_ALGORITHM_ENCRYPTING;
+        } else if (!strcmp(token, "method")) {
+            *d |= TPMA_ALGORITHM_METHOD;
+        } else {
+            return TSS2_MU_RC_BAD_VALUE;
+        }
+
+        token = strtok_r(NULL, ",", &saveptr);
+    }
+
+    return TSS2_RC_SUCCESS;
 }
 
 static TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
