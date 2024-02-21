@@ -38,6 +38,6 @@ void test_TPMS_ALG_PROPERTY_good(void **state) {
         0,
         &dest);
     assert_int_equal(rc, TSS2_RC_SUCCESS);
-
-    assert_memory_equal(&src, &dest, sizeof(dest));
+    assert_int_equal(src.alg, dest.alg);
+    assert_int_equal(src.algProperties, dest.algProperties);
 }
