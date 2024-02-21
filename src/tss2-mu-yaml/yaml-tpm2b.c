@@ -9,14 +9,14 @@
 #define SIMPLE_TPM2B_MARSHAL(type, field) \
     TSS2_RC Tss2_MU_YAML_##type##_Marshal( \
             type const *src, \
-            char ** output \
+            char ** yaml \
     ) \
     { \
         TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE; \
         yaml_document_t doc = { 0 }; \
         \
         return_if_null(src, "src is NULL", TSS2_MU_RC_BAD_REFERENCE); \
-        return_if_null(output, "output is NULL", TSS2_MU_RC_BAD_REFERENCE); \
+        return_if_null(yaml, "output is NULL", TSS2_MU_RC_BAD_REFERENCE); \
         \
         if (src->size == 0) { \
             return TSS2_MU_RC_BAD_VALUE; \
@@ -34,14 +34,14 @@
         rc = add_kvp(&doc, root, &kv); \
         return_if_error(rc, "Could not add KVP"); \
         \
-        return yaml_dump(&doc, output); \
+        return yaml_dump(&doc, yaml); \
     }
 
 #define SIMPLE_TPM2B_UNMARSHAL(type, field) \
         TSS2_RC Tss2_MU_YAML_##type##_Unmarshal( \
-            char const      yaml[], \
-            size_t          yaml_len, \
-            type   *dest) { \
+            const char  *yaml, \
+            size_t       yaml_len, \
+            type        *dest) { \
             \
             return_if_null(yaml, "buffer is NULL", TSS2_MU_RC_BAD_REFERENCE); \
             return_if_null(dest, "dest is NULL", TSS2_MU_RC_BAD_REFERENCE); \

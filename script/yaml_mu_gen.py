@@ -102,13 +102,13 @@ def print_proto(name):
         TSS2_RC
         Tss2_MU_YAML_{name}_Marshal(
             {name} const *src,
-            char            **output);
+            char        **yaml);
 
         TSS2_RC
         Tss2_MU_YAML_{name}_Unmarshal(
-            char const      buffer[],
-            size_t          buffer_size,
-            {name}   *dest);
+            const char *yaml,
+            size_t      yaml_len,
+            {name}     *dest);
     """
     )
 
@@ -201,10 +201,15 @@ def callable_tpms_protos():
         if (
             inspect.isclass(obj)
             and obj.__name__.startswith("TPMS")
+            and obj.__name__ != "TPMS_ALGORITHM_DESCRIPTION"
         ):
 
             print_proto(obj.__name__)
 
+def callable_all_protos():
+
+    callable_tpm2b_protos()
+    callable_tpms_protos()
 
 def callable_tpmu_types():
     for _, obj in inspect.getmembers(tpm2_pytss):
