@@ -557,6 +557,100 @@ static struct {
     { TPM2_ALG_ECB,            "ecb"           },
 };
 
+static size_t datum_get_size(const datum *data) {
+    switch(data->type) {
+    case data_type_p_y8:
+        return 1;
+    case data_type_p_y16:
+        return 2;
+    case data_type_p_y32:
+        return 4;
+    case data_type_p_y64:
+    case data_type_e_y64:
+        return 8;
+    /* no default */
+    }
+
+    assert(0);
+    return 0;
+}
+
+
+#define generic_from_string(d, r) _generic_from_string(d, r)
+static TSS2_RC _generic_from_string(const char *data, datum *result) {
+
+    char *endptr = NULL;
+    errno = 0;
+    unsigned long long r = strtoull(data, &endptr, 0);
+    if (errno ||  endptr == data) {
+        LOG_ERROR("Could not convert value to scalar, got: \"%s\"", data);
+        return TSS2_MU_RC_BAD_VALUE;
+    }
+
+    /* enforce we're not truncating the type */
+    size_t size = datum_get_size(result);
+    assert(size);
+
+    if ((~(0ULL) << (size * 8)) & r) {
+        LOG_ERROR("Scalar size is too big, expected %zu bytes", size);
+        return TSS2_MU_RC_BAD_VALUE;
+    }
+
+    switch(result->type) {
+        case data_type_p_y8:
+            if(result->as.p_y8.sign) {
+                *result->as.p_y8.s = (int8_t)r;
+            } else {
+                *result->as.p_y8.u = (uint8_t)r;
+            }
+            break;
+        case data_type_p_y16:
+            if(result->as.p_y16.sign) {
+                *result->as.p_y16.s = (int16_t)r;
+            } else {
+                *result->as.p_y16.u = (uint16_t)r;
+            }
+            break;
+        case data_type_p_y32:
+            if(result->as.p_y32.sign) {
+                *result->as.p_y32.s = (int32_t)r;
+            } else {
+                *result->as.p_y32.u = (uint32_t)r;
+            }
+            break;
+        case data_type_p_y64:
+            if(result->as.p_y64.sign) {
+                *result->as.p_y64.s = (int64_t)r;
+            } else {
+                *result->as.p_y64.u = (uint64_t)r;
+            }
+            break;
+        default:
+            /* this is an internal error, not user input */
+            LOG_ERROR("Cannot handle data type");
+            return TSS2_MU_RC_GENERAL_FAILURE;
+            assert(1);
+    }
+
+    return TSS2_RC_SUCCESS;
+}
+
+static TSS2_RC generic_to_string(uint64_t data, char **result) {
+
+    int size = snprintf(NULL, 0, "0x%" PRIx64, data);
+    size++;
+    char *s = calloc(1, size);
+    if (!s) {
+        return TSS2_MU_RC_MEMORY;
+    }
+
+    snprintf(s, size, "0x%" PRIx64, data);
+
+    *result = s;
+
+    return TSS2_RC_SUCCESS;
+}
+
 TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
     assert(id);
     assert(str);
@@ -573,9 +667,7 @@ TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
         }
     }
 
-    LOG_ERROR("Could not map algorithm 0x" PRIx64 " to string id", id);
-
-    return TSS2_MU_RC_BAD_VALUE;
+    return generic_to_string(id, str);
 }
 
 TSS2_RC TPM2_ALG_ID_fromstring(const char *alg, datum *value) {
@@ -583,32 +675,17 @@ TSS2_RC TPM2_ALG_ID_fromstring(const char *alg, datum *value) {
     assert(value);
 
     assert(value->type == data_type_p_y16);
-    TPM2_ALG_ID *d = value->as.p_y16.u;
+    TPM2_ALG_ID *result = value->as.p_y16.u;
 
     size_t i;
     for (i=0; i < ARRAY_LEN(alg_table); i++) {
         if (!strcmp(alg_table[i].value, alg)) {
-            *d = alg_table[i].id;
+            *result = alg_table[i].id;
             return TSS2_RC_SUCCESS;
         }
     }
 
-    char *endptr = NULL;
-    errno = 0;
-    unsigned long result = strtoul(alg, &endptr, 0);
-    if (errno ||  endptr == alg) {
-        LOG_ERROR("Unknown algorithm, got: \"%s\"", alg);
-        return TSS2_MU_RC_BAD_VALUE;
-    }
-
-    if (~(0UL) << sizeof(TPM2_ALG_ID) & result) {
-        LOG_ERROR("Scalar size for algorithm is too big, expected TPM2_ALG_ID");
-        return TSS2_MU_RC_BAD_VALUE;
-    }
-
-    *d = (TPM2_ALG_ID)result;
-
-    return TSS2_MU_RC_BAD_VALUE;
+    return generic_from_string(alg, value);
 }
 
 TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
@@ -617,32 +694,31 @@ TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
 
     char buf[256] = { 0 };
     char *p = buf;
-    if (details & TPMA_ALGORITHM_ASYMMETRIC) {
-        strcat(p, "symmetric");
-    }
-
-    if (details & TPMA_ALGORITHM_SYMMETRIC) {
-        strcat(p, ",symmetric");
-    }
-
-    if (details & TPMA_ALGORITHM_HASH) {
-        strcat(p, ",hash");
-    }
-
-    if (details & TPMA_ALGORITHM_OBJECT) {
-        strcat(p, ",object");
-    }
-
-    if (details & TPMA_ALGORITHM_SIGNING) {
-        strcat(p, ",signing");
-    }
-
-    if (details & TPMA_ALGORITHM_ENCRYPTING) {
-        strcat(p, ",encrypting");
-    }
-
-    if (details & TPMA_ALGORITHM_METHOD) {
-        strcat(p, ",method");
+    while(details) {
+        if (details & TPMA_ALGORITHM_ASYMMETRIC) {
+            details &= ~TPMA_ALGORITHM_ASYMMETRIC;
+            strcat(p, "symmetric");
+        } else  if (details & TPMA_ALGORITHM_SYMMETRIC) {
+            details &= ~TPMA_ALGORITHM_SYMMETRIC;
+            strcat(p, ",symmetric");
+        } else if (details & TPMA_ALGORITHM_HASH) {
+            details &= ~TPMA_ALGORITHM_HASH;
+            strcat(p, ",hash");
+        } else if (details & TPMA_ALGORITHM_OBJECT) {
+            details &= ~TPMA_ALGORITHM_OBJECT;
+            strcat(p, ",object");
+        } else if (details & TPMA_ALGORITHM_SIGNING) {
+            details &= ~TPMA_ALGORITHM_SIGNING;
+            strcat(p, ",signing");
+        } else if (details & TPMA_ALGORITHM_ENCRYPTING) {
+            details &= ~TPMA_ALGORITHM_ENCRYPTING;
+            strcat(p, ",encrypting");
+        } else if (details & TPMA_ALGORITHM_METHOD) {
+            details &= ~TPMA_ALGORITHM_METHOD;
+            strcat(p, ",method");
+        } else {
+            return generic_to_string(details, str);
+        }
     }
 
     if (buf[0] == ',') {
@@ -672,28 +748,27 @@ TSS2_RC TPMA_ALGORITHM_fromstring(const char *str, datum *value) {
     char *token = NULL;
 
     assert(value->type == data_type_p_y32);
-    TPMA_ALGORITHM *d = value->as.p_y32.u;
+    TPMA_ALGORITHM *result = value->as.p_y32.u;
 
     while ((token = strtok_r(s, ",", &saveptr))) {
         s = NULL;
 
         if (!strcmp(token, "asymmetric")) {
-            *d |= TPMA_ALGORITHM_ASYMMETRIC;
+            *result |= TPMA_ALGORITHM_ASYMMETRIC;
         } else if (!strcmp(token, "symmetric")) {
-            *d |= TPMA_ALGORITHM_SYMMETRIC;
+            *result |= TPMA_ALGORITHM_SYMMETRIC;
         } else if (!strcmp(token, "hash")) {
-            *d |= TPMA_ALGORITHM_HASH;
+            *result |= TPMA_ALGORITHM_HASH;
         } else if (!strcmp(token, "object")) {
-            *d |= TPMA_ALGORITHM_OBJECT;
+            *result |= TPMA_ALGORITHM_OBJECT;
         } else if (!strcmp(token, "signing")) {
-            *d |= TPMA_ALGORITHM_SIGNING;
+            *result |= TPMA_ALGORITHM_SIGNING;
         } else if (!strcmp(token, "encrypting")) {
-            *d |= TPMA_ALGORITHM_ENCRYPTING;
+            *result |= TPMA_ALGORITHM_ENCRYPTING;
         } else if (!strcmp(token, "method")) {
-            *d |= TPMA_ALGORITHM_METHOD;
+            *result |= TPMA_ALGORITHM_METHOD;
         } else {
-            LOG_ERROR("Unknown key \"%s\" while parsing: \"%s\"", token, str);
-            return TSS2_MU_RC_BAD_VALUE;
+            return generic_from_string(str, value);
         }
     }
 

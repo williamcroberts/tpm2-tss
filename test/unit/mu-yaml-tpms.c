@@ -64,4 +64,23 @@ void test_TPMS_ALG_PROPERTY_good(void **state) {
 
     assert_int_equal(src.alg, dest.alg);
     assert_int_equal(src.algProperties, dest.algProperties);
+
+    /* test unknown */
+    memset(&src, 0, sizeof(src));
+    src.alg = TPM2_ALG_LAST + 1;
+    src.algProperties = 0xFF000000;
+    rc = Tss2_MU_YAML_TPMS_ALG_PROPERTY_Marshal(
+        &src,
+        &yaml);
+    assert_int_equal(rc, TSS2_RC_SUCCESS);
+
+    memset(&dest, 0, sizeof(dest));
+    rc = Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
+        yaml,
+        0,
+        &dest);
+    assert_int_equal(rc, TSS2_RC_SUCCESS);
+
+    assert_int_equal(src.alg, dest.alg);
+    assert_int_equal(src.algProperties, dest.algProperties);
 }
