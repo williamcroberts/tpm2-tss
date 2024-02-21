@@ -5,6 +5,7 @@
 #endif
 
 #include <assert.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <string.h>
 
@@ -350,75 +351,77 @@ out:
     return rc;
 }
 
-static TSS2_RC handle_scalar(const yaml_event_t *e, key_value *dest, size_t dest_len, parser_state *state) {
+static TSS2_RC handle_mapping_scalar_key(const char *key, key_value *dest, size_t dest_len, parser_state *state);
 
-    if (!(state->state == parser_state_key ||
-            state->state == parser_state_value)) {
-        return TSS2_MU_RC_GENERAL_FAILURE;
-    }
+static TSS2_RC handle_mapping_scalar_value(const char *value, key_value *dest, size_t dest_len, parser_state *state) {
 
-    /* need a key */
-    if (state->state == parser_state_key) {
-        /* current should only be set if we're processing a kvp entry */
-        assert(!state->cur);
+    assert(state->cur);
 
-        size_t i = 0;
-        for (i=0; i < dest_len; i++) {
-            key_value *c = &dest[i];
-            if (strcmp(e->data.scalar.value, c->key)) {
-                /* no match loop up */
-                continue;
-            }
+    TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE;
 
-            /* match update cur and state */
-            state->cur = c;
-            state->state = parser_state_value;
+    switch(state->cur->value.type) {
+        case data_type_ep_tpm2b:
+            rc = hex2bin(value,
+                    state->cur->value.as.ep_tpm2b->buffer,
+                    &state->cur->value.as.ep_tpm2b->size);
             break;
-        }
-
-        if (!state->cur) {
-            LOG_ERROR("Could not match: %s", e->data.scalar.value);
+        case data_type_p_y8:
+            /* falls-through */
+        case data_type_p_y16:
+            /* falls-through */
+        case data_type_p_y32:
+            /* falls-through */
+        case data_type_p_y64:
+            yaml_fromstring from_string = state->cur->value.fromstring;
+            rc = from_string(value, &state->cur->value);
+            if (rc != TSS2_RC_SUCCESS) {
+                return rc;
+            }
+            break;
+        default:
+            LOG_ERROR("Cannot handle type: %d", state->cur->value.type);
             return TSS2_MU_RC_BAD_VALUE;
-        }
-
-        /* assert we transitioned the state machine */
-        assert(state->cur);
-        assert(state->state == parser_state_value);
-        return TSS2_RC_SUCCESS;
     }
 
-    /* handling the value */
-    if (state->state == parser_state_value) {
-        assert(state->cur);
-
-        TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE;
-
-        switch(state->cur->value.type) {
-            case data_type_ep_tpm2b:
-                rc = hex2bin(e->data.scalar.value,
-                        state->cur->value.as.ep_tpm2b->buffer,
-                        &state->cur->value.as.ep_tpm2b->size);
-                break;
-            default:
-                LOG_ERROR("Cannot handle type: %d", state->cur->value.type);
-                return TSS2_MU_RC_BAD_VALUE;
-        }
-
-        /* keep track of many of the kvps we have processed, we should never fall short */
-        if (rc == TSS2_RC_SUCCESS) {
-            state->handled++;
-        }
-
-        /* after we get a key value for a mapping we transition to mapping end */
-        state->state = parser_state_mapping_end;
-        state->cur = NULL; /* this is cleared as we're done processing this kvp map */
-
-        return rc;
+    /* keep track of many of the kvps we have processed, we should never fall short */
+    if (rc == TSS2_RC_SUCCESS) {
+        state->handled++;
+        state->handler = NULL;
     }
 
-    /* unknown state */
-    LOG_ERROR("Unknown parser state: %d", state->state);
-    return TSS2_MU_RC_GENERAL_FAILURE;
+    state->cur = NULL;
+    state->handler = handle_mapping_scalar_key;
+
+    return rc;
+}
+
+static TSS2_RC handle_mapping_scalar_key(const char *key, key_value *dest, size_t dest_len, parser_state *state) {
+
+    /* current should only be set if we're processing a kvp entry */
+    assert(!state->cur);
+
+    size_t i = 0;
+    for (i=0; i < dest_len; i++) {
+        key_value *c = &dest[i];
+        if (strcmp(key, c->key)) {
+            /* no match loop up */
+            continue;
+        }
+
+        /* match update cur and state */
+        state->cur = c;
+        break;
+    }
+
+    if (!state->cur) {
+        LOG_ERROR("Could not match: %s", key);
+        return TSS2_MU_RC_BAD_VALUE;
+    }
+
+    /* transition to handling values */
+    state->handler = handle_mapping_scalar_value;
+    assert(state->cur);
+    return TSS2_RC_SUCCESS;
 }
 
 static TSS2_RC
@@ -436,29 +439,19 @@ yaml_handle_event(const yaml_event_t *e, key_value *dest, size_t dest_len, parse
         case YAML_DOCUMENT_END_EVENT:
             return TSS2_RC_SUCCESS;
         case YAML_MAPPING_START_EVENT:
-            /* if we're looking for a key, we shouldn't hit another mapping */
-            if (state->state != parser_state_initial) {
+            /* Nested mappings shouldn't be OK */
+            if (state->handler != NULL) {
                 return TSS2_MU_RC_GENERAL_FAILURE;
             }
             /* start looking for the key */
-            state->state = parser_state_key;
+            state->handler = handle_mapping_scalar_key;
             return TSS2_RC_SUCCESS;
         case YAML_MAPPING_END_EVENT:
-            /*
-             * We better end a mapping event after getting the value OR
-             * the mapping better be empty
-             */
-            if (!(state->state == parser_state_mapping_end ||
-                    state->state == parser_state_key)) {
-                return TSS2_MU_RC_GENERAL_FAILURE;
-            }
-            /* back to handling anything */
-            state->state = parser_state_initial;
             return TSS2_RC_SUCCESS;
 
         /* Data, could be a key or value */
         case YAML_SCALAR_EVENT:
-            return handle_scalar(e, dest, dest_len, state);
+            return state->handler(e->data.scalar.value, dest, dest_len, state);
         default:
             LOG_ERROR("Unhandled YAML event type: %u\n", e->type);
         }
@@ -565,6 +558,8 @@ static struct {
 };
 
 TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
+    assert(id);
+    assert(str);
 
     size_t i;
     for (i=0; i < ARRAY_LEN(alg_table); i++) {
@@ -578,26 +573,47 @@ TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
         }
     }
 
+    LOG_ERROR("Could not map algorithm 0x" PRIx64 " to string id", id);
+
     return TSS2_MU_RC_BAD_VALUE;
 }
 
-TSS2_RC TPM2_ALG_ID_fromstring(char *alg, datum *value) {
+TSS2_RC TPM2_ALG_ID_fromstring(const char *alg, datum *value) {
+    assert(alg);
+    assert(value);
 
     assert(value->type == data_type_p_y16);
     TPM2_ALG_ID *d = value->as.p_y16.u;
 
     size_t i;
     for (i=0; i < ARRAY_LEN(alg_table); i++) {
-        if (alg_table[i].value == alg) {
+        if (!strcmp(alg_table[i].value, alg)) {
             *d = alg_table[i].id;
             return TSS2_RC_SUCCESS;
         }
     }
 
+    char *endptr = NULL;
+    errno = 0;
+    unsigned long result = strtoul(alg, &endptr, 0);
+    if (errno ||  endptr == alg) {
+        LOG_ERROR("Unknown algorithm, got: \"%s\"", alg);
+        return TSS2_MU_RC_BAD_VALUE;
+    }
+
+    if (~(0UL) << sizeof(TPM2_ALG_ID) & result) {
+        LOG_ERROR("Scalar size for algorithm is too big, expected TPM2_ALG_ID");
+        return TSS2_MU_RC_BAD_VALUE;
+    }
+
+    *d = (TPM2_ALG_ID)result;
+
     return TSS2_MU_RC_BAD_VALUE;
 }
 
 TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
+    assert(details);
+    assert(str);
 
     char buf[256] = { 0 };
     char *p = buf;
@@ -642,15 +658,24 @@ TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
     return TSS2_RC_SUCCESS;
 }
 
-TSS2_RC TPMA_ALGORITHM_fromstring(char *str, datum *value) {
+TSS2_RC TPMA_ALGORITHM_fromstring(const char *str, datum *value) {
 
-    char *saveptr;
-    char *token = strtok_r(str, ",", &saveptr);
+    assert(str);
+    assert(value);
+
+    char *s = strdup(str);
+    if (!s) {
+        return TSS2_MU_RC_MEMORY;
+    }
+
+    char *saveptr = NULL;
+    char *token = NULL;
 
     assert(value->type == data_type_p_y32);
     TPMA_ALGORITHM *d = value->as.p_y32.u;
 
-    while (token != NULL) {
+    while ((token = strtok_r(s, ",", &saveptr))) {
+        s = NULL;
 
         if (!strcmp(token, "asymmetric")) {
             *d |= TPMA_ALGORITHM_ASYMMETRIC;
@@ -667,10 +692,9 @@ TSS2_RC TPMA_ALGORITHM_fromstring(char *str, datum *value) {
         } else if (!strcmp(token, "method")) {
             *d |= TPMA_ALGORITHM_METHOD;
         } else {
+            LOG_ERROR("Unknown key \"%s\" while parsing: \"%s\"", token, str);
             return TSS2_MU_RC_BAD_VALUE;
         }
-
-        token = strtok_r(NULL, ",", &saveptr);
     }
 
     return TSS2_RC_SUCCESS;

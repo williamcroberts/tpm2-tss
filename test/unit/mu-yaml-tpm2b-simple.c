@@ -42,8 +42,8 @@
         char *yaml = (char *)0xbadcafe; \
         static const type src = { 0 }; \
         TSS2_RC rc = Tss2_MU_YAML_##type##_Marshal(&src, &yaml); \
-        assert_int_equal(rc, TSS2_RC_SUCCESS); \
-        assert_null(yaml); \
+        assert_int_equal(rc, TSS2_MU_RC_BAD_VALUE); \
+        assert_ptr_equal(yaml, 0xbadcafe); \
         \
         static const type golden; \
         type dest = { 0 }; \

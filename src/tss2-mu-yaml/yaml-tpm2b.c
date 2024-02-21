@@ -19,8 +19,7 @@
         return_if_null(output, "output is NULL", TSS2_MU_RC_BAD_REFERENCE); \
         \
         if (src->size == 0) { \
-            *output = NULL; \
-            return TSS2_RC_SUCCESS; \
+            return TSS2_MU_RC_BAD_VALUE; \
         } \
         rc = doc_init(&doc); \
         return_if_error(rc, "Could not initialize document"); \
