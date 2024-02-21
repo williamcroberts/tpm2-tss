@@ -161,19 +161,19 @@ static int yaml_add_tpm2b(yaml_document_t *doc, const TPM2B *data) {
 static int add_datum(yaml_document_t *doc, const datum *d) {
     int value = 0;
     switch (d->type) {
-    case data_type_tpm2b:
-        value = yaml_add_tpm2b(doc, d->as.tpm2b);
+    case data_type_ep_tpm2b:
+        value = yaml_add_tpm2b(doc, d->as.ep_tpm2b);
         break;
     case data_type_str:
         value = yaml_add_str(doc, d->as.str);
         break;
-    case data_type_y64:
-        if (d->as.y64.tostring) {
-            assert (d->as.y64.sign == 0);
+    case data_type_e_y64:
+        if (d->as.e_y64.tostring) {
+            assert (d->as.e_y64.sign == 0);
             char *s = NULL;
-            TSS2_RC rc = d->as.y64.tostring(d->as.y64.u, &s);
+            TSS2_RC rc = d->as.e_y64.tostring(d->as.e_y64.u, &s);
             if (rc == TSS2_MU_RC_BAD_VALUE) {
-                value = yaml_add_yaml_64(doc, &d->as.y64);
+                value = yaml_add_yaml_64(doc, &d->as.e_y64);
             } else if (rc != TSS2_RC_SUCCESS) {
                 return 0;
             } else {
@@ -181,7 +181,7 @@ static int add_datum(yaml_document_t *doc, const datum *d) {
                 free(s);
             }
         } else {
-            value = yaml_add_yaml_64(doc, &d->as.y64);
+            value = yaml_add_yaml_64(doc, &d->as.e_y64);
         }
         break;
     default:
@@ -195,7 +195,7 @@ static int add_datum(yaml_document_t *doc, const datum *d) {
 TSS2_RC add_kvp(yaml_document_t *doc, int root, const key_value *k) {
 
     // TODO WHAT TO DO WITH EMPTY TPM2Bs
-    if (k->value.type == data_type_tpm2b && k->value.as.tpm2b->size == 0) {
+    if (k->value.type == data_type_ep_tpm2b && k->value.as.ep_tpm2b->size == 0) {
         return TSS2_RC_SUCCESS;
     }
 
@@ -226,7 +226,7 @@ TSS2_RC add_kvp_list(yaml_document_t *doc, int root, const key_value *kvs, size_
 static TSS2_RC add_lst(yaml_document_t *doc, int root, const datum *d) {
 
     // TODO WHAT TO DO WITH EMPTY TPM2Bs
-    if (d->type == data_type_tpm2b && d->as.tpm2b->size == 0) {
+    if (d->type == data_type_ep_tpm2b && d->as.ep_tpm2b->size == 0) {
         return TSS2_RC_SUCCESS;
     }
 
@@ -236,6 +236,7 @@ static TSS2_RC add_lst(yaml_document_t *doc, int root, const datum *d) {
     return yaml_to_tss2_rc(yaml_document_append_sequence_item(doc, root, value));
 }
 
+// TODO USED
 TSS2_RC add_sequence_root_with_items(yaml_document_t *doc, int root,
         const char *mapkey, const datum *lst, size_t len) {
 
@@ -256,6 +257,7 @@ TSS2_RC add_sequence_root_with_items(yaml_document_t *doc, int root,
     return yaml_to_tss2_rc(yaml_document_append_mapping_pair(doc, root, sub_root_key, sub_root));
 }
 
+// TODO USED
 TSS2_RC add_mapping_root_with_items(yaml_document_t *doc, int root,
         const char *mapkey, const key_value *kvs, size_t len) {
 
@@ -392,10 +394,10 @@ static TSS2_RC handle_scalar(const yaml_event_t *e, key_value *dest, size_t dest
         TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE;
 
         switch(state->cur->value.type) {
-            case data_type_tpm2b:
+            case data_type_ep_tpm2b:
                 rc = hex2bin(e->data.scalar.value,
-                        state->cur->value.as.tpm2b->buffer,
-                        &state->cur->value.as.tpm2b->size);
+                        state->cur->value.as.ep_tpm2b->buffer,
+                        &state->cur->value.as.ep_tpm2b->size);
                 break;
             default:
                 LOG_ERROR("Cannot handle type: %d", state->cur->value.type);
@@ -514,4 +516,162 @@ error:
         yaml_parser_delete(&parser);
 
         return rc;
+}
+
+static struct {
+    TPM2_ALG_ID id;
+    const char *value;
+} alg_table[] = {
+    { TPM2_ALG_RSA,            "rsa"           },
+    { TPM2_ALG_TDES,           "tdes"          },
+    { TPM2_ALG_SHA,            "sha1"          },
+    { TPM2_ALG_SHA1,           "sha1"          },
+    { TPM2_ALG_HMAC,           "hmac"          },
+    { TPM2_ALG_AES,            "aes"           },
+    { TPM2_ALG_MGF1,           "mfg1"          },
+    { TPM2_ALG_KEYEDHASH,      "keyedhash"     },
+    { TPM2_ALG_XOR,            "xor"           },
+    { TPM2_ALG_SHA256,         "sha256"        },
+    { TPM2_ALG_SHA384,         "sha384"        },
+    { TPM2_ALG_SHA512,         "sha512"        },
+    { TPM2_ALG_NULL,           "null"          },
+    { TPM2_ALG_SM3_256,        "sha256"        },
+    { TPM2_ALG_SM4,            "sm4"           },
+    { TPM2_ALG_RSASSA,         "rsassa"        },
+    { TPM2_ALG_RSAES,          "rsaes"         },
+    { TPM2_ALG_RSAPSS,         "rsapss"        },
+    { TPM2_ALG_OAEP,           "oaep"          },
+    { TPM2_ALG_ECDSA,          "ecdsa"         },
+    { TPM2_ALG_ECDH,           "ecdh"          },
+    { TPM2_ALG_ECDAA,          "ecdaa"         },
+    { TPM2_ALG_SM2,            "sm2"           },
+    { TPM2_ALG_ECSCHNORR,      "ecschnorr"     },
+    { TPM2_ALG_ECMQV,          "ecmqv"         },
+    { TPM2_ALG_KDF1_SP800_56A, "kdf1_sp800_561"},
+    { TPM2_ALG_KDF2,           "kdf2"          },
+    { TPM2_ALG_KDF1_SP800_108, "kdf1_sp800_108"},
+    { TPM2_ALG_ECC,            "ecc"           },
+    { TPM2_ALG_SYMCIPHER,      "symcipher"     },
+    { TPM2_ALG_CAMELLIA,       "camellia"      },
+    { TPM2_ALG_CMAC,           "cmac"          },
+    { TPM2_ALG_CTR,            "ctr"           },
+    { TPM2_ALG_SHA3_256,       "sha3_256"      },
+    { TPM2_ALG_SHA3_384,       "sha3_384"      },
+    { TPM2_ALG_SHA3_512,       "sha3_512"      },
+    { TPM2_ALG_OFB,            "ofb"           },
+    { TPM2_ALG_CBC,            "cbc"           },
+    { TPM2_ALG_CFB,            "cfb"           },
+    { TPM2_ALG_ECB,            "ecb"           },
+};
+
+TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
+
+    size_t i;
+    for (i=0; i < ARRAY_LEN(alg_table); i++) {
+        if (alg_table[i].id == id) {
+            char *s = strdup(alg_table[i].value);
+            if (!s) {
+                return TSS2_MU_RC_MEMORY;
+            }
+            *str = s;
+            return TSS2_RC_SUCCESS;
+        }
+    }
+
+    return TSS2_MU_RC_BAD_VALUE;
+}
+
+TSS2_RC TPM2_ALG_ID_fromstring(char *alg, datum *value) {
+
+    assert(value->type == data_type_p_y16);
+    TPM2_ALG_ID *d = value->as.p_y16.u;
+
+    size_t i;
+    for (i=0; i < ARRAY_LEN(alg_table); i++) {
+        if (alg_table[i].value == alg) {
+            *d = alg_table[i].id;
+            return TSS2_RC_SUCCESS;
+        }
+    }
+
+    return TSS2_MU_RC_BAD_VALUE;
+}
+
+TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
+
+    char buf[256] = { 0 };
+    char *p = buf;
+    if (details & TPMA_ALGORITHM_ASYMMETRIC) {
+        strcat(p, "symmetric");
+    }
+
+    if (details & TPMA_ALGORITHM_SYMMETRIC) {
+        strcat(p, ",symmetric");
+    }
+
+    if (details & TPMA_ALGORITHM_HASH) {
+        strcat(p, ",hash");
+    }
+
+    if (details & TPMA_ALGORITHM_OBJECT) {
+        strcat(p, ",object");
+    }
+
+    if (details & TPMA_ALGORITHM_SIGNING) {
+        strcat(p, ",signing");
+    }
+
+    if (details & TPMA_ALGORITHM_ENCRYPTING) {
+        strcat(p, ",encrypting");
+    }
+
+    if (details & TPMA_ALGORITHM_METHOD) {
+        strcat(p, ",method");
+    }
+
+    if (buf[0] == ',') {
+        p++;
+    }
+
+    char *s = strdup(p);
+    if (!s) {
+        return TSS2_MU_RC_MEMORY;
+    }
+
+    *str = s;
+    return TSS2_RC_SUCCESS;
+}
+
+TSS2_RC TPMA_ALGORITHM_fromstring(char *str, datum *value) {
+
+    char *saveptr;
+    char *token = strtok_r(str, ",", &saveptr);
+
+    assert(value->type == data_type_p_y32);
+    TPMA_ALGORITHM *d = value->as.p_y32.u;
+
+    while (token != NULL) {
+
+        if (!strcmp(token, "asymmetric")) {
+            *d |= TPMA_ALGORITHM_ASYMMETRIC;
+        } else if (!strcmp(token, "symmetric")) {
+            *d |= TPMA_ALGORITHM_SYMMETRIC;
+        } else if (!strcmp(token, "hash")) {
+            *d |= TPMA_ALGORITHM_HASH;
+        } else if (!strcmp(token, "object")) {
+            *d |= TPMA_ALGORITHM_OBJECT;
+        } else if (!strcmp(token, "signing")) {
+            *d |= TPMA_ALGORITHM_SIGNING;
+        } else if (!strcmp(token, "encrypting")) {
+            *d |= TPMA_ALGORITHM_ENCRYPTING;
+        } else if (!strcmp(token, "method")) {
+            *d |= TPMA_ALGORITHM_METHOD;
+        } else {
+            return TSS2_MU_RC_BAD_VALUE;
+        }
+
+        token = strtok_r(NULL, ",", &saveptr);
+    }
+
+    return TSS2_RC_SUCCESS;
 }

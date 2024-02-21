@@ -31,10 +31,13 @@ void test_TPMS_ALG_PROPERTY_good(void **state) {
         &src,
         &yaml);
     assert_int_equal(rc, TSS2_RC_SUCCESS);
-    //
-//    TSS2_RC
-//    Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
-//        char const      buffer[],
-//        size_t          buffer_size,
-//        TPMS_ALG_PROPERTY   *dest);
+
+    TPMS_ALG_PROPERTY dest = { 0 };
+    rc = Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
+        yaml,
+        0,
+        &dest);
+    assert_int_equal(rc, TSS2_RC_SUCCESS);
+
+    assert_memory_equal(&src, &dest, sizeof(dest));
 }
