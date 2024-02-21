@@ -40,4 +40,28 @@ void test_TPMS_ALG_PROPERTY_good(void **state) {
     assert_int_equal(rc, TSS2_RC_SUCCESS);
     assert_int_equal(src.alg, dest.alg);
     assert_int_equal(src.algProperties, dest.algProperties);
+
+    /* test multiple */
+    memset(&src, 0, sizeof(src));
+    src.alg = TPM2_ALG_HMAC;
+    src.algProperties = TPMA_ALGORITHM_SYMMETRIC | TPMA_ALGORITHM_SIGNING;
+    rc = Tss2_MU_YAML_TPMS_ALG_PROPERTY_Marshal(
+        &src,
+        &yaml);
+    assert_int_equal(rc, TSS2_RC_SUCCESS);
+
+    memset(&dest, 0, sizeof(dest));
+    rc = Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
+        yaml,
+        0,
+        &dest);
+
+    rc = Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
+        yaml,
+        0,
+        &dest);
+    assert_int_equal(rc, TSS2_RC_SUCCESS);
+
+    assert_int_equal(src.alg, dest.alg);
+    assert_int_equal(src.algProperties, dest.algProperties);
 }
