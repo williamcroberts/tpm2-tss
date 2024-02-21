@@ -652,7 +652,6 @@ static TSS2_RC generic_to_string(uint64_t data, char **result) {
 }
 
 TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
-    assert(id);
     assert(str);
 
     size_t i;
@@ -689,7 +688,6 @@ TSS2_RC TPM2_ALG_ID_fromstring(const char *alg, datum *value) {
 }
 
 TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
-    assert(details);
     assert(str);
 
     char buf[256] = { 0 };

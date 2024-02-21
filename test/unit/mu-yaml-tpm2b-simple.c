@@ -37,6 +37,7 @@
     } while (0)
 
 /* test for "zero length" inputs, like "", "{}\n", etc */
+// TODO field can go away
 #define TEST_COMMON_ZERO(type, field) \
     do { \
         char *yaml = (char *)0xbadcafe; \
@@ -70,6 +71,7 @@
         assert_memory_equal(&dest, &golden, sizeof(golden)); \
     } while(0)
 
+// TODO field can go away
 #define TEST_COMMON_NULL(type, field) \
         do { \
             char *yaml = NULL; \
