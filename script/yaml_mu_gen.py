@@ -150,7 +150,7 @@ class CTypeParser(object):
         type_map = {}
        
         for node in ast.ext:
-            if node.coord.file != self.include_path:
+            if node.coord.file != self.include_path and "tss2_common.h" not in node.coord.file:
                 continue
             # TODO UNIONS
             if isinstance(node, c_ast.Decl) and isinstance(node.type, c_ast.Struct) or isinstance(node.type, c_ast.Union):
@@ -158,12 +158,13 @@ class CTypeParser(object):
                 cls =CStruct if isinstance(node.type, c_ast.Struct) else CUnion
                 type_map[struct_name] = cls(struct_name, field_map) 
             #elif isinstance(node, c_ast.Typedef) and not isinstance(node.type.type, c_ast.Struct) and not isinstance(node.type.type, c_ast.Union):
-            elif isinstance(node, c_ast.IdentifierType):
-                name, _type = CTypeParser._parse_typedef_decl(node)
+            #elif isinstance(node, c_ast.IdentifierType) or (isinstance(node, c_ast.Typedef) and not isinstance(node.type, c_ast.TypeDecl)):
+            elif isinstance(node, c_ast.Typedef):
+                name, type_ = CTypeParser._parse_typedef_decl(node)
                 if name is None:
                     continue
-                size, signed = self._get_type_size(_type)
-                type_map[name] = CScalar(_type, size, signed)
+                #size, signed = self._get_type_size(type_)
+                type_map[name] = CScalar(type_, 0, 0)
     
         return type_map
 
@@ -401,14 +402,14 @@ def callable_tpms_protos():
 
 def callable_tpms_code_gen():
        
-    t = textwrap.dedent("""
+    func = textwrap.dedent("""
         TSS2_RC
         Tss2_MU_YAML_{name}_Marshal(
             {name} const *src,
             char            **output)
         {{
             TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE;
-            yaml_document_t doc = { 0 };
+            yaml_document_t doc = {{ 0 }};
         
             return_if_null(src, "src is NULL", TSS2_MU_RC_BAD_REFERENCE);
             return_if_null(output, "output is NULL", TSS2_MU_RC_BAD_REFERENCE);
@@ -448,11 +449,10 @@ def callable_tpms_code_gen():
                 return TSS2_MU_RC_BAD_VALUE;
             }}
         
-            {name} tmp_dest = { 0 };
+            {name} tmp_dest = {{ 0 }};
         
             key_value parsed_data[] = {{
-                    KVP_ADD_PARSER_SCALAR_U16("alg",          &tmp_dest.alg,            TPM2_ALG_ID_fromstring),
-                    KVP_ADD_PARSER_SCALAR_U32("algProperties", &tmp_dest.algProperties, TPMA_ALGORITHM_fromstring)
+                {parsers}
             }};
         
             TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -468,32 +468,35 @@ def callable_tpms_code_gen():
     p = CTypeParser('/usr/include/tss2/tss2_tpm2_types.h')
     type_map = p.get_type_map()
 
-    emitters = []
-    parsers = []
     for name, type_ in type_map.items():
-        if not name.startswith("TPMS_"):
+        if not (name.startswith("TPMS_") and isinstance(type_, CComplex)):
             continue
+    
+        emitters = []
+        parsers = []
         
         field_map = type_.fields
         for f, t in field_map.items():
             field_name = f
             field_type = t
             
-            emitters.append(f'KVP_ADD_UINT_TOSTRING("{field_name}", src->{field_name}, {field_type}_tostring)')
-            
-            field_class = type_map[field_type]
+            # KVP_ADD_MARSHAL("alg", sizeof(src->alg), &src->alg, TPM2_ALG_ID_generic_marshal),
+            emitters.append(f'KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {field_type}_generic_marshal)')
+
+            try:
+                field_class = type_map[field_type]
+            except:
+                pass
             if isinstance(field_class, CScalar):
-                size = field_class.size
-                sign = field_class.sign
-                # KVP_ADD_UNMARSHAL("alg",          sizeof(tmp_dest.alg), &tmp_dest.alg,            TPM2_ALG_ID_genric_unmarshal),
-                parsers.append(f'KVP_ADD_UNMARSHAL({field_name}, {"I" if sign else "U"}{str(size * 8)}("{field_name}", &tmp_dest.{field_name}, {field_type}_fromstring'),
+                parsers.append(f'KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {field_type}_generic_unmarshal)'),
             else:
                 pass
-        emitters = ',\n'.join(emitters)
-        parsers = ',\n'.join(parsers)
+        emitters = ',\n\t\t'.join(emitters)
+        parsers = ',\n\t\t'.join(parsers)
         
         # emitter list built
-        t.format(emitters=emitters, parsers=parsers, name=name)
+        fmt = func.format(emitters=emitters, parsers=parsers, name=name)
+        print(fmt)
 
 def callable_all_protos():
 
