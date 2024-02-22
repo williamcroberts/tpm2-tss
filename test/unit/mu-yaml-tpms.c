@@ -84,7 +84,7 @@ void test_TPMS_AC_OUTPUT_good(void **state) {
     assert_true(0);
 }
 
-
+#endif
 void test_TPMS_ALG_PROPERTY_zero(void **state) {
     TEST_COMMON_ZERO(TPMS_ALG_PROPERTY);
 }
@@ -159,7 +159,7 @@ void test_TPMS_ALG_PROPERTY_good(void **state) {
     assert_int_equal(src.alg, dest.alg);
     assert_int_equal(src.algProperties, dest.algProperties);
 }
-
+#if 0
 void test_TPMS_CLOCK_INFO_zero(void **state) {
     TEST_COMMON_ZERO(TPMS_CLOCK_INFO);
 }

@@ -238,14 +238,14 @@ test_TPM2B_TEMPLATE_null(void **state);
 //void
 //test_TPMS_AC_OUTPUT_null(void **state);
 //
-//void
-//test_TPMS_ALG_PROPERTY_good(void **state);
-//
-//void
-//test_TPMS_ALG_PROPERTY_zero(void **state);
-//
-//void
-//test_TPMS_ALG_PROPERTY_null(void **state);
+void
+test_TPMS_ALG_PROPERTY_good(void **state);
+
+void
+test_TPMS_ALG_PROPERTY_zero(void **state);
+
+void
+test_TPMS_ALG_PROPERTY_null(void **state);
 //
 //void
 //test_TPMS_CLOCK_INFO_good(void **state);
@@ -379,9 +379,9 @@ main(int argc, char *argv[])
 //            cmocka_unit_test(test_TPMS_AC_OUTPUT_good),
 //            cmocka_unit_test(test_TPMS_AC_OUTPUT_zero),
 //            cmocka_unit_test(test_TPMS_AC_OUTPUT_null),
-//            cmocka_unit_test(test_TPMS_ALG_PROPERTY_good),
-//            cmocka_unit_test(test_TPMS_ALG_PROPERTY_zero),
-//            cmocka_unit_test(test_TPMS_ALG_PROPERTY_null),
+            cmocka_unit_test(test_TPMS_ALG_PROPERTY_good),
+            cmocka_unit_test(test_TPMS_ALG_PROPERTY_zero),
+            cmocka_unit_test(test_TPMS_ALG_PROPERTY_null),
 //            cmocka_unit_test(test_TPMS_CLOCK_INFO_good),
 //            cmocka_unit_test(test_TPMS_CLOCK_INFO_zero),
 //            cmocka_unit_test(test_TPMS_CLOCK_INFO_null),

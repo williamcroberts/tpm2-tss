@@ -20,7 +20,6 @@ typedef TSS2_RC (*generic_unmarshal)(const char *from, size_t yaml_len, datum *t
 struct datum {
     void *data;
     size_t size;
-    int sign;
     generic_marshal marshal;
     generic_unmarshal unmarshal;
 };

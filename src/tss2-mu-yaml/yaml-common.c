@@ -507,41 +507,7 @@ static TSS2_RC generic_scalar_unmarshal(const char *data, datum *result) {
         return TSS2_MU_RC_BAD_VALUE;
     }
 
-    switch(result->size) {
-    case 1: {
-        if (result->sign) {
-            *((int8_t *)result->data) = (int8_t)r;
-        } else {
-            *((uint8_t *)result->data) = (uint8_t)r;
-        }
-    } break;
-    case 2: {
-        if (result->sign) {
-            *((int16_t *)result->data) = (int16_t)r;
-        } else {
-            *((uint16_t *)result->data) = (uint16_t)r;
-        }
-    } break;
-    case 4: {
-        if (result->sign) {
-            *((int32_t *)result->data) = (int32_t)r;
-        } else {
-            *((uint32_t *)result->data) = (uint32_t)r;
-        }
-    } break;
-    case 8: {
-        if (result->sign) {
-            *((int64_t *)result->data) = (int64_t)r;
-        } else {
-            *((uint64_t *)result->data) = (uint64_t)r;
-        }
-    } break;
-    default:
-        LOG_ERROR("Un-handled scalar size: %zu", result->size);
-        /* internal bug */
-        return TSS2_MU_RC_GENERAL_FAILURE;
-    }
-
+    memcpy(result->data, &r, result->size);
     return TSS2_RC_SUCCESS;
 }
 

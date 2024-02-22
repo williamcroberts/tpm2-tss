@@ -485,7 +485,8 @@ def callable_tpms_code_gen():
             if isinstance(field_class, CScalar):
                 size = field_class.size
                 sign = field_class.sign
-                parsers.append(f'KVP_ADD_PARSER_SCALAR_{"I" if sign else "U"}{str(size * 8)}("{field_name}", &tmp_dest.{field_name}, {field_type}_fromstring'),
+                # KVP_ADD_UNMARSHAL("alg",          sizeof(tmp_dest.alg), &tmp_dest.alg,            TPM2_ALG_ID_genric_unmarshal),
+                parsers.append(f'KVP_ADD_UNMARSHAL({field_name}, {"I" if sign else "U"}{str(size * 8)}("{field_name}", &tmp_dest.{field_name}, {field_type}_fromstring'),
             else:
                 pass
         emitters = ',\n'.join(emitters)
