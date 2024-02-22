@@ -56,7 +56,7 @@ Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
     TPMS_ALG_PROPERTY tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-            KVP_ADD_UNMARSHAL("alg",          sizeof(tmp_dest.alg), &tmp_dest.alg,            TPM2_ALG_ID_genric_unmarshal),
+            KVP_ADD_UNMARSHAL("alg",          sizeof(tmp_dest.alg), &tmp_dest.alg,            TPM2_ALG_ID_generic_unmarshal),
             KVP_ADD_UNMARSHAL("algProperties", sizeof(tmp_dest.algProperties), &tmp_dest.algProperties, TPMA_ALGORITHM_generic_unmarshal)
     };
 

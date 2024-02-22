@@ -76,7 +76,7 @@ TSS2_RC tpm2b_simple_generic_unmarshal(const char *in, size_t len, datum *out);
 
 
 TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out);
-TSS2_RC TPM2_ALG_ID_genric_unmarshal(const char *in, size_t len, datum *out);
+TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *in, size_t len, datum *out);
 
 TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out);
 TSS2_RC TPMA_ALGORITHM_generic_unmarshal(const char *in, size_t len, datum *out);

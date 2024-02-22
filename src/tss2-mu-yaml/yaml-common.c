@@ -549,7 +549,7 @@ TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out) {
     return generic_scalar_marshal(*id, out);
 }
 
-TSS2_RC TPM2_ALG_ID_genric_unmarshal(const char *alg, size_t len, datum *value) {
+TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *alg, size_t len, datum *value) {
     assert(alg);
     assert(value);
     assert(value->size == sizeof(TPM2_ALG_ID));
