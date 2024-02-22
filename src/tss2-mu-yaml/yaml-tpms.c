@@ -27,8 +27,8 @@ Tss2_MU_YAML_TPMS_ALG_PROPERTY_Marshal(
     }
 
     struct key_value kvs[2] = {
-        KVP_ADD_UINT_TOSTRING("alg", src->alg, TPM2_ALG_ID_tostring),
-        KVP_ADD_UINT_TOSTRING("algProperties", src->algProperties, TPMA_ALGORITHM_tostring)
+        KVP_ADD_MARSHAL("alg", sizeof(src->alg), &src->alg, TPM2_ALG_ID_generic_marshal),
+        KVP_ADD_MARSHAL("algProperties", sizeof(src->algProperties), &src->algProperties, TPMA_ALGORITHM_generic_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -56,8 +56,8 @@ Tss2_MU_YAML_TPMS_ALG_PROPERTY_Unmarshal(
     TPMS_ALG_PROPERTY tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-            KVP_ADD_PARSER_SCALAR_U16("alg",          &tmp_dest.alg,            TPM2_ALG_ID_fromstring),
-            KVP_ADD_PARSER_SCALAR_U32("algProperties", &tmp_dest.algProperties, TPMA_ALGORITHM_fromstring)
+            KVP_ADD_UNMARSHAL("alg",          sizeof(tmp_dest.alg), &tmp_dest.alg,            TPM2_ALG_ID_genric_unmarshal),
+            KVP_ADD_UNMARSHAL("algProperties", sizeof(tmp_dest.algProperties), &tmp_dest.algProperties, TPMA_ALGORITHM_generic_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));

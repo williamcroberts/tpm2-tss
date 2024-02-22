@@ -1,13 +1,171 @@
 #!/usr/bin/env python3
 import argparse
+import contextlib
 import inspect
 import os
 import tpm2_pytss
 import subprocess
+import yaml
 from pycparser import c_parser, c_ast
 import sys
+import tempfile
 import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
+
+class CComplex(object):
+    @property
+    def name(self):
+        return self._name
+    
+    @property
+    def fields(self):
+        return self._fields
+    
+    def __init__(self, name: str, fields: dict):
+        self._name = name
+        self._fields = fields
+
+    def __str__(self):
+        return f"{self._name}:\n\t{self._fields}"
+
+class CStruct(CComplex):
+    pass
+
+class CUnion(CComplex):
+    pass
+
+class CScalar(object):
+    @property
+    def name(self):
+        return self._name
+    
+    @property
+    def size(self) -> int:
+        return self._size
+    
+    @property
+    def signed(self) -> bool:
+        return self._signed
+    
+    def __init__(self, name: str, size: int, signed: bool):
+        self._name = name
+        self._size = size
+        self._signed = signed
+
+    def __str__(self):
+        return (f"{self._name}:\n\tsigned: {self._signed}\n\tsize: {self._size}")
+
+class CTypeParser(object):
+
+    def __init__(self, include_path: str):
+        self.include_path = include_path
+
+    def _run_cpp(self) -> str:
+        # Run the C preprocessor (cpp) on the header file
+        result = subprocess.run(['gcc', '-E', self.include_path], capture_output=True, text=True)
+        preprocessed_code = result.stdout
+        return preprocessed_code
+    
+    def _get_type_size(self, type_: str) -> (int, bool):
+        
+        prog = textwrap.dedent(f"""
+        #include <stdio.h>
+        #include "{self.include_path}"
+        
+        int main(int argc, char *argv[]) {{
+            (void) argc;
+            (void) argv;
+                
+            {type_} x = (typeof(x))-1;
+            x >>= 1;
+            printf("sizeof: %zu\\n", sizeof(x));
+            printf("signed: %d\\n", x & 1 << (sizeof(x) * 8 - 1));
+    
+            return 0;
+        }}
+        """)
+        
+        with contextlib.ExitStack() as stack:
+            tmp_dir = tempfile.TemporaryDirectory()
+            stack.enter_context(tmp_dir)
+            
+            tmp_src = open(os.path.join(tmp_dir.name, f"{type_}.c"), mode="w+t")
+            stack.enter_context(tmp_src)
+            
+            tmp_bin = os.path.join(tmp_dir.name, f"{type_}.bin")
+            
+            tmp_src.write(prog)
+            tmp_src.flush()
+            
+            result = subprocess.run(['gcc', '-o', tmp_bin, tmp_src.name ], capture_output=True)
+            if result.returncode != 0:
+                raise subprocess.CalledProcessError(result.stderr.decode(), cmd="gcc")
+            
+            type_data = subprocess.run([tmp_bin], capture_output=True, text=True, check=True)
+            y = yaml.safe_load(type_data.stdout)
+            return (int(y["sizeof"]), bool(y["signed"]))
+        
+    
+    @staticmethod
+    def _parse_struct_decl(decl):
+        struct_name = decl.name
+        field_map = {}
+    
+        for field_decl in decl.decls:
+            if isinstance(field_decl, c_ast.Decl):
+                field_name = field_decl.name
+                field_type = field_decl.type
+                if isinstance(field_type, c_ast.ArrayDecl):
+                    field_type = field_type.type
+    
+                assert isinstance(field_type, c_ast.TypeDecl)
+                try:
+                    sub_type = field_type.type
+                    first_type = sub_type.names[0]
+                except Exception as e:
+                    raise e
+                field_map[field_name] = str(first_type)
+    
+        return struct_name, field_map
+    
+    @staticmethod
+    def _parse_typedef_decl(decl):
+        try:
+            name = decl.name
+            type_ = getattr(decl.type.type, "names", None)
+            if type_:
+                type_name = type_[0]
+            else:
+                type_name = decl.type.type.name
+            return name, type_name
+        except:
+            return None, None
+    
+    def get_type_map(self) -> dict:
+        preprocessed_code = self._run_cpp()
+    
+        parser = c_parser.CParser()
+        ast = parser.parse(preprocessed_code, filename=self.include_path)
+
+        type_map = {}
+       
+        for node in ast.ext:
+            if node.coord.file != self.include_path:
+                continue
+            # TODO UNIONS
+            if isinstance(node, c_ast.Decl) and isinstance(node.type, c_ast.Struct) or isinstance(node.type, c_ast.Union):
+                struct_name, field_map = CTypeParser._parse_struct_decl(node.type)
+                cls =CStruct if isinstance(node.type, c_ast.Struct) else CUnion
+                type_map[struct_name] = cls(struct_name, field_map) 
+            #elif isinstance(node, c_ast.Typedef) and not isinstance(node.type.type, c_ast.Struct) and not isinstance(node.type.type, c_ast.Union):
+            elif isinstance(node, c_ast.IdentifierType):
+                name, _type = CTypeParser._parse_typedef_decl(node)
+                if name is None:
+                    continue
+                size, signed = self._get_type_size(_type)
+                type_map[name] = CScalar(_type, size, signed)
+    
+        return type_map
 
 
 def get_subclasses(base_class, package):
@@ -18,13 +176,12 @@ def get_subclasses(base_class, package):
     return subclasses
 
 
-
 def print_proto(name):
     t = textwrap.dedent(
         f"""
         TSS2_RC
         Tss2_MU_YAML_{name}_Marshal(
-            {name} const *src,
+            const {name} *src,
             char        **yaml);
 
         TSS2_RC
@@ -242,85 +399,7 @@ def callable_tpms_protos():
 
             print_proto(obj.__name__)
 
-def generate_type_map():
-
-    def run_cpp(header_file_path):
-        # Run the C preprocessor (cpp) on the header file
-        result = subprocess.run(['gcc', '-E', header_file_path], capture_output=True, text=True)
-        preprocessed_code = result.stdout
-        return preprocessed_code
-    
-    def parse_struct_decl(decl):
-        struct_name = decl.name
-        field_map = {}
-    
-        for field_decl in decl.decls:
-            if isinstance(field_decl, c_ast.Decl):
-                field_name = field_decl.name
-                field_type = field_decl.type
-                if isinstance(field_type, c_ast.ArrayDecl):
-                    field_type = field_type.type
-
-                assert isinstance(field_type, c_ast.TypeDecl)
-                try:
-                    sub_type = field_type.type
-                    first_type = sub_type.names[0]
-                except Exception as e:
-                    raise e
-                field_map[field_name] = str(first_type)
-    
-        return struct_name, field_map
-    
-    def parse_typedef_decl(decl):
-        try:
-            name = decl.name
-            type_ = getattr(decl.type.type, "names", None)
-            if type_:
-                type_name = type_[0]
-            else:
-                type_name = decl.type.type.name
-            return name, type_name
-        except:
-            return None, None
-    
-    def parse_header_file(header_file_path):
-        preprocessed_code = run_cpp(header_file_path)
-    
-        parser = c_parser.CParser()
-        ast = parser.parse(preprocessed_code, filename=header_file_path)
-    
-        scalar_map = {}
-        struct_map = {}
-    
-        for node in ast.ext:
-            if node.coord.file != '/usr/include/tss2/tss2_tpm2_types.h':
-                continue
-            
-            if isinstance(node, c_ast.Decl) and isinstance(node.type, c_ast.Struct):
-                struct_name, field_map = parse_struct_decl(node.type)
-                struct_map[struct_name] = field_map
-            elif isinstance(node, c_ast.Typedef):
-                name, _type = parse_typedef_decl(node)
-                if name is None:
-                    continue
-                scalar_map[name] = _type
-    
-        return struct_map
-    
-    # Example usage
-    header_file_path = "/usr/include/tss2/tss2_tpm2_types.h"
-    struct_map = parse_header_file(header_file_path)
-    
-    return struct_map
-
-# # Print the result
-# for struct_name, field_map in struct_map.items():
-#     print(f"Struct {struct_name}:")
-#     for field_name, field_type in field_map.items():
-#         print(f"  {field_name}: {field_type}")
-
-
-def callable_tpms_simple_gen():
+def callable_tpms_code_gen():
        
     t = textwrap.dedent("""
         TSS2_RC
@@ -386,26 +465,29 @@ def callable_tpms_simple_gen():
             return TSS2_RC_SUCCESS;
         }}""")
 
-    type_map = generate_type_map()
+    p = CTypeParser('/usr/include/tss2/tss2_tpm2_types.h')
+    type_map = p.get_type_map()
 
-    simples = get_tpms_simple()
     emitters = []
     parsers = []
-    for cls in simples:
-        name = cls.__name__
-        instance = cls()
-        fields = [
-            f
-            for f in dir(instance)
-            if not f.startswith("_") and not f == "marshal" and not f == "unmarshal"
-        ]
-        field_map = type_map[name]
-        for f in fields:
+    for name, type_ in type_map.items():
+        if not name.startswith("TPMS_"):
+            continue
+        
+        field_map = type_.fields
+        for f, t in field_map.items():
             field_name = f
-            field_type = field_map[field_name]
+            field_type = t
             
             emitters.append(f'KVP_ADD_UINT_TOSTRING("{field_name}", src->{field_name}, {field_type}_tostring)')
-
+            
+            field_class = type_map[field_type]
+            if isinstance(field_class, CScalar):
+                size = field_class.size
+                sign = field_class.sign
+                parsers.append(f'KVP_ADD_PARSER_SCALAR_{"I" if sign else "U"}{str(size * 8)}("{field_name}", &tmp_dest.{field_name}, {field_type}_fromstring'),
+            else:
+                pass
         emitters = ',\n'.join(emitters)
         parsers = ',\n'.join(parsers)
         

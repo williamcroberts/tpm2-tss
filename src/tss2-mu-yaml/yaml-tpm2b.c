@@ -5,6 +5,7 @@
 #include "yaml-common.h"
 
 #include "util/aux_util.h"
+#include "util/tpm2b.h"
 
 #define SIMPLE_TPM2B_MARSHAL(type, field) \
     TSS2_RC Tss2_MU_YAML_##type##_Marshal( \
@@ -30,7 +31,7 @@
             return TSS2_MU_RC_GENERAL_FAILURE; \
         } \
         \
-        struct key_value kv = KVP_ADD_TPM2B(#field, src); \
+        struct key_value kv = KVP_ADD_MARSHAL(#field, src->size, src, tpm2b_simple_generic_marshal); \
         rc = add_kvp(&doc, root, &kv); \
         return_if_error(rc, "Could not add KVP"); \
         \
@@ -53,8 +54,8 @@
             if (yaml_len == 0) { \
                 return TSS2_MU_RC_BAD_VALUE; \
             } \
-            type tmp_dest = MAX_LEN_STATIC_INIT(tmp_dest, field); \
-            key_value parsed_data = KVP_ADD_TPM2B(#field, &tmp_dest); \
+            type tmp_dest = { 0 }; \
+            key_value parsed_data = KVP_ADD_UNMARSHAL(#field, FIELD_SIZE(type, field), &tmp_dest, tpm2b_simple_generic_unmarshal); \
             \
             TSS2_RC rc = yaml_parse(yaml, yaml_len, &parsed_data, 1); \
             if (rc == TSS2_RC_SUCCESS) { \
@@ -64,7 +65,53 @@
             return rc; \
         }
 
-SIMPLE_TPM2B_MARSHAL(TPM2B_ATTEST, attestationData)
+TSS2_RC Tss2_MU_YAML_TPM2B_ATTEST_Marshal(
+            TPM2B_ATTEST const *src,
+            char ** yaml
+    )
+    {
+        TSS2_RC rc = ((TSS2_RC)(((TSS2_RC)9 << (16)) |
+                                                     1U));
+        yaml_document_t doc = { 0 };
+
+        if (src == ((void *)0)) {
+        {};
+        return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
+                                                     5U));
+    };
+        if (yaml == ((void *)0)) {
+        {};
+        return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
+                                                     5U));
+    };
+
+        if (src->size == 0) {
+            return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
+                                                     11U));
+        }
+        rc = doc_init(&doc);
+        if (rc != ((TSS2_RC) 0)) {
+        {};
+        return rc;
+    };
+
+        int root = yaml_document_add_mapping(&doc, ((void *)0), YAML_ANY_MAPPING_STYLE);
+        if (!root) {
+            yaml_document_delete(&doc);
+            return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
+                                                     1U));
+        }
+
+        struct key_value kv = {.key = "attestationData", .value = { .data = (void *)src, .size = src->size, .marshal = tpm2b_simple_generic_marshal }};
+        rc = add_kvp(&doc, root, &kv);
+        if (rc != ((TSS2_RC) 0)) {
+        {};
+        return rc;
+    };
+
+    return yaml_dump(&doc, yaml);
+}
+
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_ATTEST, attestationData)
 SIMPLE_TPM2B_MARSHAL(TPM2B_AUTH, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_AUTH, buffer)

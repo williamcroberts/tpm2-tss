@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "util/aux_util.h"
+#include "util/tpm2b.h"
 
 #include "yaml-common.h"
 
@@ -39,47 +40,32 @@ static int yaml_add_str(yaml_document_t *doc, const char *str) {
             (yaml_char_t *)str ? str : NULL_STR, -1, YAML_ANY_SCALAR_STYLE);
 }
 
-static int yaml_add_yaml_64(yaml_document_t *doc, const yaml_64 *data) {
+TSS2_RC tpm2b_simple_generic_marshal(const datum *in, char **out) {
 
-    /*
-     * 8 bytes for 64 bit nums, times two for 2 chars per byte in hex,
-     * and a nul byte and extra bytes for the fmt string
-     */
-    char buf[128] = { 0 };
+    assert(in);
+    assert(out);
 
-    const char *fmt = NULL;
-    switch(data->base) {
-    case 10:
-        fmt = data->sign ? "%"PRIi64 : "%"PRIu64;
-        break;
-    case 16:
-        fmt = "0x%"PRIx64;
-        break;
-    default:
-        LOG_ERROR("Cannot handle integer base: %u", data->base);
-        return 0;
+    TPM2B *tpm2b = (TPM2B *)in->data;
+
+    if (tpm2b->size == 0) {
+        // TODO zero len ok?
+        return TSS2_RC_SUCCESS;
     }
 
-    snprintf(buf, sizeof(buf), fmt, data->u);
+    TPM2B_DATA x;
 
-    /* prevents something like !!int always being tagged on ints unless canonical is set */
-    // TODO: DO WE WANT CANNONICAL SUPPORT? yaml_char_t *tag = doc->canonical ? YAML_INT_TAG : YAML_STR_TAG;
-    return yaml_document_add_scalar(doc, (yaml_char_t *)YAML_STR_TAG, \
-                        (yaml_char_t *)buf, -1, YAML_ANY_SCALAR_STYLE);
-}
-
-static char *bin2hex(const uint8_t *buffer, size_t size) {
-    char *hex_string = malloc((size) * 2 + 1);
-    return_if_null(hex_string, "Out of memory.", NULL);
-
-    if (size > 0) {
-        size_t i, off;
-        for (i = 0, off = 0; i < size; i++, off += 2)
-            sprintf(&hex_string[off], "%02x", buffer[i]);
+    char *hex_string = malloc((in->size) * 2 + 1);
+    return_if_null(hex_string, "Out of memory.", TSS2_MU_RC_MEMORY);
+    char *buffer = (char *)tpm2b->buffer;
+    size_t i, off;
+    for (i = 0, off = 0; i < in->size; i++, off += 2) {
+        sprintf(&hex_string[off], "%02x", buffer[i]);
     }
-    hex_string[(size) * 2] = '\0';
 
-    return hex_string;
+    hex_string[(in->size) * 2] = '\0';
+    *out = hex_string;
+
+    return TSS2_RC_SUCCESS;
 }
 
 static TSS2_RC hex_to_nibble(char c, unsigned *val) {
@@ -98,15 +84,16 @@ static TSS2_RC hex_to_nibble(char c, unsigned *val) {
     return TSS2_RC_SUCCESS;
 }
 
-static TSS2_RC hex2bin(const char *hex, uint8_t *buffer, UINT16 *size) {
-    assert(size);
+TSS2_RC tpm2b_simple_generic_unmarshal(const char *hex, size_t len, datum *d) {
+    assert(d);
     assert(hex);
-    UINT16 max = *size;
+    // TODO use?
+    UNUSED(len);
+    UINT16 max = d->size;
 
-    if (*size == 0 ) {
-        return TSS2_RC_SUCCESS;
-    }
+    TPM2B *tpm2b = (TPM2B *)d->data;
 
+    char *buffer = (char *)tpm2b->buffer;
     char c = hex[0];
     UINT16 i, offset;
     unsigned val;
@@ -139,64 +126,30 @@ static TSS2_RC hex2bin(const char *hex, uint8_t *buffer, UINT16 *size) {
         return TSS2_MU_RC_BAD_VALUE;
     }
 
-    *size = offset;
+    tpm2b->size = offset;
 
     return TSS2_RC_SUCCESS;
 }
 
-
-static int yaml_add_tpm2b(yaml_document_t *doc, const TPM2B *data) {
-
-    char *h = bin2hex(data->buffer, data->size);
-    if (!h) {
-        return TSS2_MU_RC_MEMORY;
-    }
-
-    int node = yaml_document_add_scalar(doc, (yaml_char_t *)YAML_STR_TAG,
-            h, -1, YAML_ANY_SCALAR_STYLE);
-    free(h);
-
-    return node;
-}
-
 static int add_datum(yaml_document_t *doc, const datum *d) {
-    int value = 0;
-    switch (d->type) {
-    case data_type_ep_tpm2b:
-        value = yaml_add_tpm2b(doc, d->as.ep_tpm2b);
-        break;
-    case data_type_str:
-        value = yaml_add_str(doc, d->as.str);
-        break;
-    case data_type_e_y64:
-        if (d->as.e_y64.tostring) {
-            assert (d->as.e_y64.sign == 0);
-            char *s = NULL;
-            TSS2_RC rc = d->as.e_y64.tostring(d->as.e_y64.u, &s);
-            if (rc == TSS2_MU_RC_BAD_VALUE) {
-                value = yaml_add_yaml_64(doc, &d->as.e_y64);
-            } else if (rc != TSS2_RC_SUCCESS) {
-                return 0;
-            } else {
-                value = yaml_add_str(doc, s);
-                free(s);
-            }
-        } else {
-            value = yaml_add_yaml_64(doc, &d->as.e_y64);
-        }
-        break;
-    default:
-        LOG_ERROR("Unknown type: %u", d->type);
+
+    char *yaml = NULL;
+    TSS2_RC rc = d->marshal(d, &yaml);
+    if (rc != TSS2_RC_SUCCESS) {
         return 0;
     }
 
-    return value;
+    int node = yaml_document_add_scalar(doc, (yaml_char_t *)YAML_STR_TAG,
+            yaml, -1, YAML_ANY_SCALAR_STYLE);
+    free(yaml);
+
+    return node;
 }
 
 TSS2_RC add_kvp(yaml_document_t *doc, int root, const key_value *k) {
 
     // TODO WHAT TO DO WITH EMPTY TPM2Bs
-    if (k->value.type == data_type_ep_tpm2b && k->value.as.ep_tpm2b->size == 0) {
+    if (k->value.size == 0) {
         return TSS2_RC_SUCCESS;
     }
 
@@ -226,8 +179,8 @@ TSS2_RC add_kvp_list(yaml_document_t *doc, int root, const key_value *kvs, size_
 
 static TSS2_RC add_lst(yaml_document_t *doc, int root, const datum *d) {
 
-    // TODO WHAT TO DO WITH EMPTY TPM2Bs
-    if (d->type == data_type_ep_tpm2b && d->as.ep_tpm2b->size == 0) {
+    // TODO WHAT TO DO WITH EMPTY THINGS
+    if (d->size == 0) {
         return TSS2_RC_SUCCESS;
     }
 
@@ -357,32 +310,13 @@ static TSS2_RC handle_mapping_scalar_value(const char *value, key_value *dest, s
 
     assert(state->cur);
 
-    TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE;
-
-    switch(state->cur->value.type) {
-        case data_type_ep_tpm2b:
-            rc = hex2bin(value,
-                    state->cur->value.as.ep_tpm2b->buffer,
-                    &state->cur->value.as.ep_tpm2b->size);
-            break;
-        case data_type_p_y8:
-            /* falls-through */
-        case data_type_p_y16:
-            /* falls-through */
-        case data_type_p_y32:
-            /* falls-through */
-        case data_type_p_y64:
-            yaml_fromstring from_string = state->cur->value.fromstring;
-            rc = from_string(value, &state->cur->value);
-            if (rc != TSS2_RC_SUCCESS) {
-                return rc;
-            }
-            break;
-        default:
-            LOG_ERROR("Cannot handle type: %d", state->cur->value.type);
+    // TODO plumb len in
+    TSS2_RC rc = state->cur->value.unmarshal(value, strlen(value), &state->cur->value);
+    if (rc != TSS2_RC_SUCCESS) {
             return TSS2_MU_RC_BAD_VALUE;
     }
 
+    // TODO STILL NEEDED?
     /* keep track of many of the kvps we have processed, we should never fall short */
     if (rc == TSS2_RC_SUCCESS) {
         state->handled++;
@@ -557,27 +491,7 @@ static struct {
     { TPM2_ALG_ECB,            "ecb"           },
 };
 
-static size_t datum_get_size(const datum *data) {
-    switch(data->type) {
-    case data_type_p_y8:
-        return 1;
-    case data_type_p_y16:
-        return 2;
-    case data_type_p_y32:
-        return 4;
-    case data_type_p_y64:
-    case data_type_e_y64:
-        return 8;
-    /* no default */
-    }
-
-    assert(0);
-    return 0;
-}
-
-
-#define generic_from_string(d, r) _generic_from_string(d, r)
-static TSS2_RC _generic_from_string(const char *data, datum *result) {
+static TSS2_RC generic_scalar_unmarshal(const char *data, datum *result) {
 
     char *endptr = NULL;
     errno = 0;
@@ -588,54 +502,50 @@ static TSS2_RC _generic_from_string(const char *data, datum *result) {
     }
 
     /* enforce we're not truncating the type */
-    size_t size = datum_get_size(result);
-    assert(size);
-
-    if ((~(0ULL) << (size * 8)) & r) {
-        LOG_ERROR("Scalar size is too big, expected %zu bytes", size);
+    if ((~(0ULL) << (result->size * 8)) & r) {
+        LOG_ERROR("Scalar size is too big, expected %zu bytes", result->size);
         return TSS2_MU_RC_BAD_VALUE;
     }
 
-    switch(result->type) {
-        case data_type_p_y8:
-            if(result->as.p_y8.sign) {
-                *result->as.p_y8.s = (int8_t)r;
-            } else {
-                *result->as.p_y8.u = (uint8_t)r;
-            }
-            break;
-        case data_type_p_y16:
-            if(result->as.p_y16.sign) {
-                *result->as.p_y16.s = (int16_t)r;
-            } else {
-                *result->as.p_y16.u = (uint16_t)r;
-            }
-            break;
-        case data_type_p_y32:
-            if(result->as.p_y32.sign) {
-                *result->as.p_y32.s = (int32_t)r;
-            } else {
-                *result->as.p_y32.u = (uint32_t)r;
-            }
-            break;
-        case data_type_p_y64:
-            if(result->as.p_y64.sign) {
-                *result->as.p_y64.s = (int64_t)r;
-            } else {
-                *result->as.p_y64.u = (uint64_t)r;
-            }
-            break;
-        default:
-            /* this is an internal error, not user input */
-            LOG_ERROR("Cannot handle data type");
-            return TSS2_MU_RC_GENERAL_FAILURE;
-            assert(1);
+    switch(result->size) {
+    case 1: {
+        if (result->sign) {
+            *((int8_t *)result->data) = (int8_t)r;
+        } else {
+            *((uint8_t *)result->data) = (uint8_t)r;
+        }
+    } break;
+    case 2: {
+        if (result->sign) {
+            *((int16_t *)result->data) = (int16_t)r;
+        } else {
+            *((uint16_t *)result->data) = (uint16_t)r;
+        }
+    } break;
+    case 4: {
+        if (result->sign) {
+            *((int32_t *)result->data) = (int32_t)r;
+        } else {
+            *((uint32_t *)result->data) = (uint32_t)r;
+        }
+    } break;
+    case 8: {
+        if (result->sign) {
+            *((int64_t *)result->data) = (int64_t)r;
+        } else {
+            *((uint64_t *)result->data) = (uint64_t)r;
+        }
+    } break;
+    default:
+        LOG_ERROR("Un-handled scalar size: %zu", result->size);
+        /* internal bug */
+        return TSS2_MU_RC_GENERAL_FAILURE;
     }
 
     return TSS2_RC_SUCCESS;
 }
 
-static TSS2_RC generic_to_string(uint64_t data, char **result) {
+static TSS2_RC generic_scalar_marshal(uint64_t data, char **result) {
 
     int size = snprintf(NULL, 0, "0x%" PRIx64, data);
     size++;
@@ -651,30 +561,37 @@ static TSS2_RC generic_to_string(uint64_t data, char **result) {
     return TSS2_RC_SUCCESS;
 }
 
-TSS2_RC TPM2_ALG_ID_tostring(uint64_t id, char **str) {
-    assert(str);
+TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out) {
+    assert(in);
+    assert(out);
+    assert(sizeof(TPM2_ALG_ID) == in->size);
+
+    const TPM2_ALG_ID *id = (const TPM2_ALG_ID *)in->data;
 
     size_t i;
     for (i=0; i < ARRAY_LEN(alg_table); i++) {
-        if (alg_table[i].id == id) {
+        if (alg_table[i].id == *id) {
             char *s = strdup(alg_table[i].value);
             if (!s) {
                 return TSS2_MU_RC_MEMORY;
             }
-            *str = s;
+            *out = s;
             return TSS2_RC_SUCCESS;
         }
     }
 
-    return generic_to_string(id, str);
+    return generic_scalar_marshal(*id, out);
 }
 
-TSS2_RC TPM2_ALG_ID_fromstring(const char *alg, datum *value) {
+TSS2_RC TPM2_ALG_ID_genric_unmarshal(const char *alg, size_t len, datum *value) {
     assert(alg);
     assert(value);
+    assert(value->size == sizeof(TPM2_ALG_ID));
 
-    assert(value->type == data_type_p_y16);
-    TPM2_ALG_ID *result = value->as.p_y16.u;
+    // TODO can we plumb this right?
+    UNUSED(len);
+
+    TPM2_ALG_ID *result = (TPM2_ALG_ID *)value->data;
 
     size_t i;
     for (i=0; i < ARRAY_LEN(alg_table); i++) {
@@ -684,11 +601,16 @@ TSS2_RC TPM2_ALG_ID_fromstring(const char *alg, datum *value) {
         }
     }
 
-    return generic_from_string(alg, value);
+    return generic_scalar_unmarshal(alg, value);
 }
 
-TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
-    assert(str);
+TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out) {
+    assert(in);
+    assert(out);
+    assert(sizeof(TPMA_ALGORITHM) == in->size);
+
+    const TPMA_ALGORITHM *d = (const TPMA_ALGORITHM *)in->data;
+    TPMA_ALGORITHM details = *d;
 
     char buf[256] = { 0 };
     char *p = buf;
@@ -715,7 +637,7 @@ TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
             details &= ~TPMA_ALGORITHM_METHOD;
             strcat(p, ",method");
         } else {
-            return generic_to_string(details, str);
+            return generic_scalar_marshal(*d, out);
         }
     }
 
@@ -728,16 +650,20 @@ TSS2_RC TPMA_ALGORITHM_tostring(uint64_t details, char **str) {
         return TSS2_MU_RC_MEMORY;
     }
 
-    *str = s;
+    *out = s;
     return TSS2_RC_SUCCESS;
 }
 
-TSS2_RC TPMA_ALGORITHM_fromstring(const char *str, datum *value) {
+TSS2_RC TPMA_ALGORITHM_generic_unmarshal(const char *in, size_t len, datum *out) {
 
-    assert(str);
-    assert(value);
+    assert(in);
+    assert(out);
+    assert(out->size == sizeof(TPMA_ALGORITHM));
 
-    char *s = strdup(str);
+    // TODO can we plumb this right?
+    UNUSED(len);
+
+    char *s = strdup(in);
     if (!s) {
         return TSS2_MU_RC_MEMORY;
     }
@@ -745,8 +671,7 @@ TSS2_RC TPMA_ALGORITHM_fromstring(const char *str, datum *value) {
     char *saveptr = NULL;
     char *token = NULL;
 
-    assert(value->type == data_type_p_y32);
-    TPMA_ALGORITHM *result = value->as.p_y32.u;
+    TPMA_ALGORITHM *result = out->data;
 
     while ((token = strtok_r(s, ",", &saveptr))) {
         s = NULL;
@@ -766,7 +691,7 @@ TSS2_RC TPMA_ALGORITHM_fromstring(const char *str, datum *value) {
         } else if (!strcmp(token, "method")) {
             *result |= TPMA_ALGORITHM_METHOD;
         } else {
-            return generic_from_string(str, value);
+            return generic_scalar_unmarshal(in, out);
         }
     }
 
