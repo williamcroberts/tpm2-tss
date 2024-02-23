@@ -1,4 +1,6 @@
+
 /* SPDX-License-Identifier: BSD-2-Clause */
+/* AUTOGENRATED CODE DO NOT MODIFY */
 
 #include <stdlib.h>
 
@@ -65,66 +67,24 @@
             return rc; \
         }
 
-TSS2_RC Tss2_MU_YAML_TPM2B_ATTEST_Marshal(
-            TPM2B_ATTEST const *src,
-            char ** yaml
-    )
-    {
-        TSS2_RC rc = ((TSS2_RC)(((TSS2_RC)9 << (16)) |
-                                                     1U));
-        yaml_document_t doc = { 0 };
-
-        if (src == ((void *)0)) {
-        {};
-        return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
-                                                     5U));
-    };
-        if (yaml == ((void *)0)) {
-        {};
-        return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
-                                                     5U));
-    };
-
-        if (src->size == 0) {
-            return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
-                                                     11U));
-        }
-        rc = doc_init(&doc);
-        if (rc != ((TSS2_RC) 0)) {
-        {};
-        return rc;
-    };
-
-        int root = yaml_document_add_mapping(&doc, ((void *)0), YAML_ANY_MAPPING_STYLE);
-        if (!root) {
-            yaml_document_delete(&doc);
-            return ((TSS2_RC)(((TSS2_RC)9 << (16)) |
-                                                     1U));
-        }
-
-        struct key_value kv = {.key = "attestationData", .value = { .data = (void *)src, .size = src->size, .marshal = tpm2b_simple_generic_marshal }};
-        rc = add_kvp(&doc, root, &kv);
-        if (rc != ((TSS2_RC) 0)) {
-        {};
-        return rc;
-    };
-
-    return yaml_dump(&doc, yaml);
-}
-
+SIMPLE_TPM2B_MARSHAL(TPM2B_ATTEST, attestationData)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_ATTEST, attestationData)
-SIMPLE_TPM2B_MARSHAL(TPM2B_AUTH, buffer)
-SIMPLE_TPM2B_UNMARSHAL(TPM2B_AUTH, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_CONTEXT_DATA, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_CONTEXT_DATA, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_CONTEXT_SENSITIVE, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_CONTEXT_SENSITIVE, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_CREATION_DATA, creationData)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_CREATION_DATA, creationData)
 SIMPLE_TPM2B_MARSHAL(TPM2B_DATA, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_DATA, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_DERIVE, buffer)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_DERIVE, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_DIGEST, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_DIGEST, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_ECC_PARAMETER, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_ECC_PARAMETER, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_ECC_POINT, point)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_ECC_POINT, point)
 SIMPLE_TPM2B_MARSHAL(TPM2B_ENCRYPTED_SECRET, secret)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_ENCRYPTED_SECRET, secret)
 SIMPLE_TPM2B_MARSHAL(TPM2B_EVENT, buffer)
@@ -133,24 +93,32 @@ SIMPLE_TPM2B_MARSHAL(TPM2B_ID_OBJECT, credential)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_ID_OBJECT, credential)
 SIMPLE_TPM2B_MARSHAL(TPM2B_IV, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_IV, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_LABEL, buffer)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_LABEL, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_MAX_BUFFER, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_MAX_BUFFER, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_MAX_CAP_BUFFER, buffer)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_MAX_CAP_BUFFER, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_MAX_NV_BUFFER, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_MAX_NV_BUFFER, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_NAME, name)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_NAME, name)
-SIMPLE_TPM2B_MARSHAL(TPM2B_NONCE, buffer)
-SIMPLE_TPM2B_UNMARSHAL(TPM2B_NONCE, buffer)
-SIMPLE_TPM2B_MARSHAL(TPM2B_OPERAND, buffer)
-SIMPLE_TPM2B_UNMARSHAL(TPM2B_OPERAND, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_NV_PUBLIC, nvPublic)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_NV_PUBLIC, nvPublic)
 SIMPLE_TPM2B_MARSHAL(TPM2B_PRIVATE, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_PRIVATE, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_PRIVATE_KEY_RSA, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_PRIVATE_KEY_RSA, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_PRIVATE_VENDOR_SPECIFIC, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_PRIVATE_VENDOR_SPECIFIC, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_PUBLIC, publicArea)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_PUBLIC, publicArea)
 SIMPLE_TPM2B_MARSHAL(TPM2B_PUBLIC_KEY_RSA, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_PUBLIC_KEY_RSA, buffer)
+SIMPLE_TPM2B_MARSHAL(TPM2B_SENSITIVE, sensitiveArea)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_SENSITIVE, sensitiveArea)
+SIMPLE_TPM2B_MARSHAL(TPM2B_SENSITIVE_CREATE, sensitive)
+SIMPLE_TPM2B_UNMARSHAL(TPM2B_SENSITIVE_CREATE, sensitive)
 SIMPLE_TPM2B_MARSHAL(TPM2B_SENSITIVE_DATA, buffer)
 SIMPLE_TPM2B_UNMARSHAL(TPM2B_SENSITIVE_DATA, buffer)
 SIMPLE_TPM2B_MARSHAL(TPM2B_SYM_KEY, buffer)

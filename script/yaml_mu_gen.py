@@ -1,18 +1,56 @@
 #!/usr/bin/env python3
 import argparse
+import bisect
 import contextlib
 import inspect
 import os
 import tpm2_pytss
 import subprocess
 import yaml
-from pycparser import c_parser, c_ast
+import pycparser
 import sys
 import tempfile
 import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
 
-class CComplex(object):
+class _CMagicEq(object):
+
+    def __eq__(self, other):
+        if isinstance(other, _CMagicEq):
+            return self.name == other.name
+        return NotImplemented
+
+    def __ne__(self, other):
+        result = self.__eq__(other)
+        if result is not NotImplemented:
+            return not result
+        return NotImplemented
+
+    def __lt__(self, other):
+        if isinstance(other, _CMagicEq):
+            return self.name < other.name
+        return NotImplemented
+
+    def __le__(self, other):
+        result_eq = self.__eq__(other)
+        result_lt = self.__lt__(other)
+        if result_eq is not NotImplemented:
+            return result_eq or result_lt
+        return NotImplemented
+
+    def __gt__(self, other):
+        if isinstance(other, _CMagicEq):
+            return self.name > other.name
+        return NotImplemented
+
+    def __ge__(self, other):
+        result_eq = self.__eq__(other)
+        result_gt = self.__gt__(other)
+        if result_eq is not NotImplemented:
+            return result_eq or result_gt
+        return NotImplemented
+
+class CComplex(_CMagicEq):
     @property
     def name(self):
         return self._name
@@ -25,16 +63,13 @@ class CComplex(object):
         self._name = name
         self._fields = fields
 
-    def __str__(self):
-        return f"{self._name}:\n\t{self._fields}"
-
 class CStruct(CComplex):
     pass
 
 class CUnion(CComplex):
     pass
 
-class CScalar(object):
+class CScalar(_CMagicEq):
     @property
     def name(self):
         return self._name
@@ -58,6 +93,7 @@ class CScalar(object):
 class CTypeParser(object):
 
     def __init__(self, include_path: str):
+        self._type_map = None
         self.include_path = include_path
 
     def _run_cpp(self) -> str:
@@ -112,13 +148,13 @@ class CTypeParser(object):
         field_map = {}
     
         for field_decl in decl.decls:
-            if isinstance(field_decl, c_ast.Decl):
+            if isinstance(field_decl, pycparser.c_ast.Decl):
                 field_name = field_decl.name
                 field_type = field_decl.type
-                if isinstance(field_type, c_ast.ArrayDecl):
+                if isinstance(field_type, pycparser.c_ast.ArrayDecl):
                     field_type = field_type.type
     
-                assert isinstance(field_type, c_ast.TypeDecl)
+                assert isinstance(field_type, pycparser.c_ast.TypeDecl)
                 try:
                     sub_type = field_type.type
                     first_type = sub_type.names[0]
@@ -141,34 +177,44 @@ class CTypeParser(object):
         except:
             return None, None
     
-    def get_type_map(self) -> dict:
+    def parse(self) -> dict:
         preprocessed_code = self._run_cpp()
-    
-        parser = c_parser.CParser()
+        print(preprocessed_code)
+        parser = pycparser.c_parser.CParser()
         ast = parser.parse(preprocessed_code, filename=self.include_path)
 
-        type_map = {}
-       
+        scalar_type_map = {}
+        union_type_map = {}
+        struct_type_map = {}
+        
         for node in ast.ext:
             if node.coord.file != self.include_path and "tss2_common.h" not in node.coord.file:
                 continue
-            # TODO UNIONS
-            if isinstance(node, c_ast.Decl) and isinstance(node.type, c_ast.Struct) or isinstance(node.type, c_ast.Union):
-                struct_name, field_map = CTypeParser._parse_struct_decl(node.type)
-                cls =CStruct if isinstance(node.type, c_ast.Struct) else CUnion
-                type_map[struct_name] = cls(struct_name, field_map) 
-            #elif isinstance(node, c_ast.Typedef) and not isinstance(node.type.type, c_ast.Struct) and not isinstance(node.type.type, c_ast.Union):
-            #elif isinstance(node, c_ast.IdentifierType) or (isinstance(node, c_ast.Typedef) and not isinstance(node.type, c_ast.TypeDecl)):
-            elif isinstance(node, c_ast.Typedef):
-                name, type_ = CTypeParser._parse_typedef_decl(node)
-                if name is None:
+
+            if isinstance(node, pycparser.c_ast.Decl) and isinstance(node.type, pycparser.c_ast.Struct) or isinstance(node.type, pycparser.c_ast.Union):
+                type_name, field_map = CTypeParser._parse_struct_decl(node.type)
+                
+                if isinstance(node.type, pycparser.c_ast.Struct):
+                    struct_type_map[type_name] = CStruct(type_name, field_map)
+                else:
+                    union_type_map[type_name] = CUnion(type_name, field_map)
+                    union_type_map[type_name] = CStruct(type_name, field_map)
+            elif isinstance(node, pycparser.c_ast.Typedef):
+                type_name, type_ = CTypeParser._parse_typedef_decl(node)
+                if type_name is None:
                     continue
                 #size, signed = self._get_type_size(type_)
-                type_map[name] = CScalar(type_, 0, 0)
+                scalar_type_map[type_name] = CScalar(type_, 0, 0)
     
-        return type_map
+        self._type_map = {
+            'struct' : struct_type_map,
+            'union'  : union_type_map,
+            'scalar' : scalar_type_map,
+        }
 
-
+    def get_type_map(self) -> dict:
+        return self._type_map
+    
 def get_subclasses(base_class, package):
     subclasses = []
     for _, obj in inspect.getmembers(package):
@@ -323,18 +369,105 @@ def callable_tpm2b_test_list():
     for s in subclasses:
         print_cmocka_test(s.__name__)
 
-def callable_tpm2b_defines():
-    subclasses = get_subclasses(TPM2B_SIMPLE_OBJECT, package=tpm2_pytss)
-    for s in subclasses:
-        x = s()
-        attrs = dir(x._cdata)
-        attrs.remove("size")
-        assert len(attrs) == 1
-        name = s.__name__
-        field = attrs[0]
-        print(f"SIMPLE_TPM2B_MARSHAL({name}, {field})")
-        print(f"SIMPLE_TPM2B_UNMARSHAL({name}, {field})")
+def generate_simple_tpm2bs(cprsr: CTypeParser, proj_root: str):
 
+    epilogue = textwrap.dedent(r"""
+    /* SPDX-License-Identifier: BSD-2-Clause */
+    /* AUTOGENRATED CODE DO NOT MODIFY */
+    
+    #include <stdlib.h>
+    
+    #include "yaml-common.h"
+    
+    #include "util/aux_util.h"
+    #include "util/tpm2b.h"
+    
+    #define SIMPLE_TPM2B_MARSHAL(type, field) \
+        TSS2_RC Tss2_MU_YAML_##type##_Marshal( \
+                type const *src, \
+                char ** yaml \
+        ) \
+        { \
+            TSS2_RC rc = TSS2_MU_RC_GENERAL_FAILURE; \
+            yaml_document_t doc = { 0 }; \
+            \
+            return_if_null(src, "src is NULL", TSS2_MU_RC_BAD_REFERENCE); \
+            return_if_null(yaml, "output is NULL", TSS2_MU_RC_BAD_REFERENCE); \
+            \
+            if (src->size == 0) { \
+                return TSS2_MU_RC_BAD_VALUE; \
+            } \
+            rc = doc_init(&doc); \
+            return_if_error(rc, "Could not initialize document"); \
+            \
+            int root = yaml_document_add_mapping(&doc, NULL, YAML_ANY_MAPPING_STYLE); \
+            if (!root) { \
+                yaml_document_delete(&doc); \
+                return TSS2_MU_RC_GENERAL_FAILURE; \
+            } \
+            \
+            struct key_value kv = KVP_ADD_MARSHAL(#field, src->size, src, tpm2b_simple_generic_marshal); \
+            rc = add_kvp(&doc, root, &kv); \
+            return_if_error(rc, "Could not add KVP"); \
+            \
+            return yaml_dump(&doc, yaml); \
+        }
+    
+    #define SIMPLE_TPM2B_UNMARSHAL(type, field) \
+            TSS2_RC Tss2_MU_YAML_##type##_Unmarshal( \
+                const char  *yaml, \
+                size_t       yaml_len, \
+                type        *dest) { \
+                \
+                return_if_null(yaml, "buffer is NULL", TSS2_MU_RC_BAD_REFERENCE); \
+                return_if_null(dest, "dest is NULL", TSS2_MU_RC_BAD_REFERENCE); \
+                \
+                if (yaml_len == 0) { \
+                    yaml_len = strlen(yaml); \
+                } \
+                \
+                if (yaml_len == 0) { \
+                    return TSS2_MU_RC_BAD_VALUE; \
+                } \
+                type tmp_dest = { 0 }; \
+                key_value parsed_data = KVP_ADD_UNMARSHAL(#field, FIELD_SIZE(type, field), &tmp_dest, tpm2b_simple_generic_unmarshal); \
+                \
+                TSS2_RC rc = yaml_parse(yaml, yaml_len, &parsed_data, 1); \
+                if (rc == TSS2_RC_SUCCESS) { \
+                    *dest = tmp_dest; \
+                } \
+                \
+                return rc; \
+            }
+        """)
+
+    all_structs = cprsr.get_type_map()['struct']
+    simples = []
+    for k, v in all_structs.items():
+        if not k.startswith("TPM2B_"):
+            continue
+        
+        if not isinstance(v, CStruct):
+            continue
+        
+        fields = v.fields
+        if len(fields) != 2:
+            continue
+        
+        if "size" not in fields:
+            continue
+        
+        #this IS a simple TPM2B add it to a list and keep it sorted
+        bisect.insort(simples, v)
+    
+    with open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-tpm2b.c"), "w+t") as f:
+        f.write(epilogue)
+        f.write("\n")
+        for s in simples:
+            name = s.name
+            field = next(x for x in s.fields.keys() if x != "size")
+            f.write(f"SIMPLE_TPM2B_MARSHAL({name}, {field})\n")
+            f.write(f"SIMPLE_TPM2B_UNMARSHAL({name}, {field})\n")
 
 def get_tpms_simple():
     l = []
@@ -515,27 +648,16 @@ def callable_tpmu_types():
 
 if __name__ == "__main__":
 
-    def get_callable_functions_in_current_module():
-        current_module = globals()
-        return [
-            name[9:]
-            for name, obj in current_module.items()
-            if inspect.isfunction(obj) and obj.__name__.startswith("callable_")
-        ]
-
-    choices = get_callable_functions_in_current_module()
-
-    parser = argparse.ArgumentParser(description="Your script description")
-    parser.add_argument(
-        "action", choices=choices, help="Choose one option from {}".format(choices)
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("root")
     args = parser.parse_args()
+    
+    proj_root = args.root
 
-    action = args.action
-    fn = globals()[f"callable_{action}"]
-
-    print(
-        f"/* AUTOGENERATED ASSISTED CODE using yaml_mu_gen.py {sys.argv[1]}. modify with care */"
-    )
-
-    fn()
+    include_file = os.path.join(proj_root, "include", "tss2", "tss2_tpm2_types.h")
+    cprsr = CTypeParser(include_file)
+    cprsr.parse()
+    
+    generate_simple_tpm2bs(cprsr, proj_root)
+    
+    
