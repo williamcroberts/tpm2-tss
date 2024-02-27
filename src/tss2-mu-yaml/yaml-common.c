@@ -491,27 +491,49 @@ static struct {
     { TPM2_ALG_ECB,            "ecb"           },
 };
 
-static TSS2_RC generic_scalar_unmarshal(const char *data, datum *result) {
+TSS2_RC yaml_common_generic_scalar_unmarshal(const char *data, size_t len, datum *result) {
+
+    TSS2_RC rc = TSS2_MU_RC_BAD_VALUE;
+    /* zero length data is interpreted as NUL terminated C string */
+    bool should_free = false;
+    const char *nul_term = NULL;
+    if (!len) {
+        nul_term = data;
+    } else {
+        should_free = true;
+        nul_term = calloc(1, len + 1);
+        if (!nul_term) {
+            return TSS2_MU_RC_MEMORY;
+        }
+    }
+
+    memcpy(nul_term, data, len);
 
     char *endptr = NULL;
     errno = 0;
-    unsigned long long r = strtoull(data, &endptr, 0);
-    if (errno ||  endptr == data) {
+    unsigned long long r = strtoull(nul_term, &endptr, 0);
+    if (errno ||  endptr == nul_term) {
         LOG_ERROR("Could not convert value to scalar, got: \"%s\"", data);
-        return TSS2_MU_RC_BAD_VALUE;
+        goto out;
     }
 
     /* enforce we're not truncating the type */
     if ((~(0ULL) << (result->size * 8)) & r) {
         LOG_ERROR("Scalar size is too big, expected %zu bytes", result->size);
-        return TSS2_MU_RC_BAD_VALUE;
+        goto out;
     }
 
     memcpy(result->data, &r, result->size);
-    return TSS2_RC_SUCCESS;
+    rc = TSS2_RC_SUCCESS;
+
+out:
+    if (should_free) {
+        free(nul_term);
+    }
+    return rc;
 }
 
-static TSS2_RC generic_scalar_marshal(uint64_t data, char **result) {
+TSS2_RC yaml_common_generic_scalar_marshal(uint64_t data, char **result) {
 
     int size = snprintf(NULL, 0, "0x%" PRIx64, data);
     size++;

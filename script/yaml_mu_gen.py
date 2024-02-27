@@ -633,7 +633,7 @@ def type_to_root(scalar_map: dict, scalar: CScalar) -> CScalar:
     return resolved
 
 
-def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str):
+def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str) -> list[str]:
     epilogue = textwrap.dedent(
         """    /* SPDX-License-Identifier: BSD-2-Clause */
     /* AUTOGENRATED CODE DO NOT MODIFY */
@@ -712,7 +712,7 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str):
 
     type_map = cprsr.get_type_map()
 
-    needed_leaf_functions = {}
+    needed_leaf_functions = []
 
     with open(
         os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-tpms.c"), "w+t"
@@ -733,29 +733,28 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str):
                     resolved_type = type_to_root(
                         type_map["scalar"], type_map["scalar"][field_type]
                     )
+                    
+                    if resolved_type.name not in needed_leaf_functions:
+                        needed_leaf_functions.append(resolved_type.name)
+
+                    fn_name = f"yaml_scalar_{resolved_type.name}_generic"
                 elif field_type in type_map["struct"]:
                     resolved_type = type_map["struct"][field_type]
+                    fn_name = f"Tss2_MU_YAML_{resolved_type.name}"
                 elif field_type in type_map["union"]:
                     resolved_type = type_map["union"][field_type]
+                    fn_name = f"Tss2_MU_YAML_{resolved_type.name}"
                 else:
                     raise RuntimeError(f"Unknown type: {field_type}")
 
                 emitters.append(
-                    f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {resolved_type.name}_generic_marshal)'
+                    f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {fn_name}_marshal)'
                 )
 
                 parsers.append(
-                    f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {resolved_type.name}_generic_unmarshal)'
+                    f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {fn_name}_unmarshal)'
                 )
 
-                if (
-                    field_type in type_map["scalar"]
-                    and resolved_type.name not in needed_leaf_functions
-                ):
-                    needed_leaf_functions[resolved_type.name] = [
-                        f"{resolved_type.name}_generic_marshal",
-                        f"{resolved_type.name}_generic_unmarshal",
-                    ]
 
             emitters = ",\n    ".join(emitters)
             parsers = ",\n    ".join(parsers)
@@ -767,7 +766,71 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str):
         return needed_leaf_functions
 
 
-    def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: dict):
+def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
+
+    spdx = "/* SPDX-License-Identifier: BSD-2-Clause */"
+
+    hdr_prologue = textwrap.dedent(f"""
+    {spdx}
+    #ifndef SRC_TSS2_MU_YAML_YAML_SCALAR_H_
+    #define SRC_TSS2_MU_YAML_YAML_SCALAR_H_
+
+    /* forward declare to break cyclic dependency on yaml-common.h */
+    typedef struct datum datum;
+    """)
+
+    src_prolog = textwrap.dedent(f"""
+    {spdx}
+    #include "yaml-common.h"
+    #include "yaml-scalar.h"
+    """)
+
+    hdr_epilogue = textwrap.dedent("""
+    #endif /* SRC_TSS2_MU_YAML_YAML_SCALAR_H_ */
+    """)
+
+
+    with ExitStack() as stack:
+        src_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-scalar.c"), "w+t")
+        stack.enter_context(src_file)
+        hdr_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-scalar.h"), "w+t")
+        stack.enter_context(hdr_file)
+    
+        hdr_file.write(hdr_prologue)
+        src_file.write(src_prolog)
+    
+        fn_snippet = textwrap.dedent("""
+        
+        TSS2_RC yaml_scalar_{type_name}_generic_marshal(const datum *in, char **out)
+        {{
+            assert(in);
+            assert(out);
+            assert(sizeof({type_name}) == in->size);
+        
+            const {type_name} *x = (const {type_name} *)in->data;
+        
+            return yaml_common_generic_scalar_marshal(x, out);
+        }}
+        
+        TSS2_RC yaml_scalar_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out) {{
+        
+            return yaml_common_generic_scalar_unmarshal(in, len, out);
+        }}
+        """)
+
+        fn_proto_snippet = textwrap.dedent("""
+        TSS2_RC yaml_scalar_{type_name}_generic_marshal(const datum *in, char **out);
+        TSS2_RC yaml_scalar_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out);
+        """)
+
+        for type_name in needed_leafs:
+            src_code = fn_snippet.format(type_name=type_name)
+            hdr_code = fn_proto_snippet.format(type_name=type_name)
+            
+            src_file.write(src_code)
+            hdr_file.write(hdr_code)
+
+        hdr_file.write(hdr_epilogue)
 
 
 #

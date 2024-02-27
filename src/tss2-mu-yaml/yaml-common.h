@@ -8,6 +8,8 @@
 #include "yaml-common.h"
 #include "tss2_tpm2_types.h"
 
+#include "yaml-scalar.h"
+
 #define LOGMODULE yaml_marshal
 #include "util/log.h"
 
@@ -74,6 +76,8 @@ TSS2_RC yaml_parse(const char *yaml, size_t size, key_value *dest, size_t dest_l
 TSS2_RC tpm2b_simple_generic_marshal(const datum *in, char **out);
 TSS2_RC tpm2b_simple_generic_unmarshal(const char *in, size_t len, datum *out);
 
+TSS2_RC yaml_common_generic_scalar_marshal(uint64_t data, char **result);
+TSS2_RC yaml_common_generic_scalar_unmarshal(const char *data, size_t len, datum *result);
 
 TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out);
 TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *in, size_t len, datum *out);
