@@ -14,6 +14,7 @@ import sys
 import tempfile
 import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
+from contextlib import ExitStack
 
 
 class _CMagicEq(object):
@@ -86,20 +87,15 @@ class CScalar(_CMagicEq):
         return self._name
 
     @property
-    def size(self) -> int:
-        return self._size
+    def alias(self) -> int:
+        return self._alias
 
-    @property
-    def signed(self) -> bool:
-        return self._signed
-
-    def __init__(self, name: str, size: int, signed: bool):
+    def __init__(self, name: str, alias: str):
         self._name = name
-        self._size = size
-        self._signed = signed
+        self._alias = None if name == alias else alias
 
     def __str__(self):
-        return f"{self._name}:\n\tsigned: {self._signed}\n\tsize: {self._size}"
+        return f"{self._name} : {self._alias}"
 
 
 class CTypeParser(object):
@@ -108,7 +104,7 @@ class CTypeParser(object):
         self.include_path = include_path
 
     def _run_cpp(self) -> str:
-        # Run the C preprocessor (cpp) on the header file
+        # Run the C preprocessor (cpresolved_typep) on the header file
         result = subprocess.run(
             ["gcc", "-E", self.include_path], capture_output=True, text=True
         )
@@ -199,9 +195,34 @@ class CTypeParser(object):
 
     def parse(self) -> dict:
         preprocessed_code = self._run_cpp()
-        print(preprocessed_code)
+
         parser = pycparser.c_parser.CParser()
         ast = parser.parse(preprocessed_code, filename=self.include_path)
+
+        stdint_base_type = [
+            "int",  # include this becuase of typedef int BOOL
+            "int8_t",
+            "uint8_t",
+            "int16_t",
+            "uint16_t",
+            "int32_t",
+            "uint32_t",
+            "int64_t",
+            "uint64_t",
+        ]
+
+        tpm2_base_types = [
+            "INT8",
+            "INT16",
+            "INT32",
+            "INT64",
+            "UINT8",
+            "UINT16",
+            "UINT32",
+            "UINT64",
+            "BYTE",
+            "BOOL",
+        ]
 
         scalar_type_map = {}
         union_type_map = {}
@@ -253,8 +274,10 @@ class CTypeParser(object):
                             new_union = union.morph(new_name=type_name)
                             union_type_map[type_name] = new_union
                         else:
-                            typedef_type_map[type_name] = aliases[0]
-                    # else it's a typedef to the same name or no aliases
+                            if alias in stdint_base_type or alias in tpm2_base_types:
+                                alias = None
+
+                            scalar_type_map[type_name] = CScalar(type_name, alias)
 
         self._type_map = {
             "struct": struct_type_map,
@@ -436,8 +459,7 @@ def callable_tpm2b_test_list():
 
 def generate_simple_tpm2bs(cprsr: CTypeParser, proj_root: str):
     epilogue = textwrap.dedent(
-        r"""
-    /* SPDX-License-Identifier: BSD-2-Clause */
+        r"""/* SPDX-License-Identifier: BSD-2-Clause */
     /* AUTOGENRATED CODE DO NOT MODIFY */
     
     #include <stdlib.h>
@@ -601,9 +623,29 @@ def callable_tpms_protos():
             print_proto(obj.__name__)
 
 
-def callable_tpms_code_gen():
+def type_to_root(scalar_map: dict, scalar: CScalar) -> CScalar:
+    resolved = scalar.alias
+    if resolved != None:
+        resolved = scalar_map[resolved]
+        resolved = type_to_root(scalar_map, resolved)
+    else:
+        resolved = scalar
+    return resolved
+
+
+def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str):
+    epilogue = textwrap.dedent(
+        """    /* SPDX-License-Identifier: BSD-2-Clause */
+    /* AUTOGENRATED CODE DO NOT MODIFY */
+
+    #include <stdlib.h>
+
+    #include "yaml-common.h"
+    """
+    )
     func = textwrap.dedent(
         """
+
         TSS2_RC
         Tss2_MU_YAML_{name}_Marshal(
             {name} const *src,
@@ -625,7 +667,7 @@ def callable_tpms_code_gen():
             }}
         
             struct key_value kvs[] = {{
-                {emitters}
+            {emitters}
             }};
             rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
             return_if_error(rc, "Could not add KVPs");
@@ -653,7 +695,7 @@ def callable_tpms_code_gen():
             {name} tmp_dest = {{ 0 }};
         
             key_value parsed_data[] = {{
-                {parsers}
+            {parsers}
             }};
         
             TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -664,61 +706,85 @@ def callable_tpms_code_gen():
             *dest = tmp_dest;
         
             return TSS2_RC_SUCCESS;
-        }}"""
+        }}
+        """
     )
 
-    p = CTypeParser("/usr/include/tss2/tss2_tpm2_types.h")
-    type_map = p.get_type_map()
+    type_map = cprsr.get_type_map()
 
-    for name, type_ in type_map.items():
-        if not (name.startswith("TPMS_") and isinstance(type_, CComplex)):
-            continue
+    needed_leaf_functions = {}
 
-        emitters = []
-        parsers = []
+    with open(
+        os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-tpms.c"), "w+t"
+    ) as f:
+        f.write(epilogue)
+        f.write("\n")
 
-        field_map = type_.fields
-        for f, t in field_map.items():
-            field_name = f
-            field_type = t
+        for name, type_ in type_map["struct"].items():
+            if not (name.startswith("TPMS_") and isinstance(type_, CStruct)):
+                continue
 
-            # KVP_ADD_MARSHAL("alg", sizeof(src->alg), &src->alg, TPM2_ALG_ID_generic_marshal),
-            emitters.append(
-                f'KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {field_type}_generic_marshal)'
-            )
+            emitters = []
+            parsers = []
 
-            try:
-                field_class = type_map[field_type]
-            except:
-                pass
-            if isinstance(field_class, CScalar):
+            field_map = type_.fields
+            for field_name, field_type in field_map.items():
+                if field_type in type_map["scalar"]:
+                    resolved_type = type_to_root(
+                        type_map["scalar"], type_map["scalar"][field_type]
+                    )
+                elif field_type in type_map["struct"]:
+                    resolved_type = type_map["struct"][field_type]
+                elif field_type in type_map["union"]:
+                    resolved_type = type_map["union"][field_type]
+                else:
+                    raise RuntimeError(f"Unknown type: {field_type}")
+
+                emitters.append(
+                    f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {resolved_type.name}_generic_marshal)'
+                )
+
                 parsers.append(
-                    f'KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {field_type}_generic_unmarshal)'
-                ),
-            else:
-                pass
-        emitters = ",\n\t\t".join(emitters)
-        parsers = ",\n\t\t".join(parsers)
+                    f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {resolved_type.name}_generic_unmarshal)'
+                )
 
-        # emitter list built
-        fmt = func.format(emitters=emitters, parsers=parsers, name=name)
-        print(fmt)
+                if (
+                    field_type in type_map["scalar"]
+                    and resolved_type.name not in needed_leaf_functions
+                ):
+                    needed_leaf_functions[resolved_type.name] = [
+                        f"{resolved_type.name}_generic_marshal",
+                        f"{resolved_type.name}_generic_unmarshal",
+                    ]
+
+            emitters = ",\n    ".join(emitters)
+            parsers = ",\n    ".join(parsers)
+
+            # emitter list built
+            fmt = func.format(emitters=emitters, parsers=parsers, name=name)
+            f.write(fmt)
+
+        return needed_leaf_functions
 
 
-def callable_all_protos():
-    callable_tpm2b_protos()
-    callable_tpms_protos()
+    def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: dict):
 
 
-def callable_all_test_list():
-    callable_tpm2b_test_list()
-    callabale_tpms_simple_test_list()
-
-
-def callable_tpmu_types():
-    for _, obj in inspect.getmembers(tpm2_pytss):
-        if inspect.isclass(obj) and obj.__name__.startswith("TPMU"):
-            print(obj.__name__)
+#
+# def callable_all_protos():
+#     callable_tpm2b_protos()
+#     callable_tpms_protos()
+#
+#
+# def callable_all_test_list():
+#     callable_tpm2b_test_list()
+#     callabale_tpms_simple_test_list()
+#
+#
+# def callable_tpmu_types():
+#     for _, obj in inspect.getmembers(tpm2_pytss):
+#         if inspect.isclass(obj) and obj.__name__.startswith("TPMU"):
+#             print(obj.__name__)
 
 
 if __name__ == "__main__":
@@ -732,4 +798,7 @@ if __name__ == "__main__":
     cprsr = CTypeParser(include_file)
     cprsr.parse()
 
-    generate_simple_tpm2bs(cprsr, proj_root)
+    # generate_simple_tpm2bs(cprsr, proj_root)
+    needed_leafs = generate_tpms_code_gen(cprsr, proj_root)
+
+    generate_leafs(cprsr, proj_root, needed_leafs)
