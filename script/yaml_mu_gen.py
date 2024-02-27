@@ -737,18 +737,17 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
                         type_map["scalar"], type_map["scalar"][field_type]
                     )
                     
-                    if resolved_type.name not in needed_leafs:
-                        needed_leafs.append(resolved_type.name)
-
-                    fn_name = f"yaml_scalar_{resolved_type.name}_generic"
                 elif field_type in type_map["struct"]:
                     resolved_type = type_map["struct"][field_type]
-                    fn_name = f"Tss2_MU_YAML_{resolved_type.name}"
                 elif field_type in type_map["union"]:
                     resolved_type = type_map["union"][field_type]
-                    fn_name = f"Tss2_MU_YAML_{resolved_type.name}"
                 else:
                     raise RuntimeError(f"Unknown type: {field_type}")
+
+                if resolved_type.name not in needed_leafs:
+                    needed_leafs.append(resolved_type)
+
+                fn_name = f"yaml_internal_{resolved_type.name}"
 
                 emitters.append(
                     f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {fn_name}_marshal)'
@@ -766,18 +765,6 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
             fmt = func.format(emitters=emitters, parsers=parsers, name=name)
             f.write(fmt)
 
-# def generate_tpmt_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: list[str], needed_leafs: list[str]):
-#         epilogue = textwrap.dedent(
-#             """    /* SPDX-License-Identifier: BSD-2-Clause */
-#         /* AUTOGENRATED CODE DO NOT MODIFY */
-#
-#         #include <stdlib.h>
-#
-#         #include "yaml-common.h"
-#         """
-#         )
-
-
 def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
     spdx = "/* SPDX-License-Identifier: BSD-2-Clause */"
@@ -794,26 +781,24 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
     src_prolog = textwrap.dedent(f"""
     {spdx}
     #include "yaml-common.h"
-    #include "yaml-scalar.h"
+    #include "yaml-internal.h"
     """)
 
     hdr_epilogue = textwrap.dedent("""
     #endif /* SRC_TSS2_MU_YAML_YAML_SCALAR_H_ */
     """)
 
-
     with ExitStack() as stack:
-        src_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-scalar.c"), "w+t")
+        src_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-internal.c"), "w+t")
         stack.enter_context(src_file)
-        hdr_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-scalar.h"), "w+t")
+        hdr_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-internal.h"), "w+t")
         stack.enter_context(hdr_file)
     
         hdr_file.write(hdr_prologue)
         src_file.write(src_prolog)
     
-        fn_snippet = textwrap.dedent("""
-        
-        TSS2_RC yaml_scalar_{type_name}_generic_marshal(const datum *in, char **out)
+        scalar_fn_snippet = textwrap.dedent("""
+        TSS2_RC yaml_internal_{type_name}_generic_marshal(const datum *in, char **out)
         {{
             assert(in);
             assert(out);
@@ -824,19 +809,23 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
             return yaml_common_generic_scalar_marshal(x, out);
         }}
         
-        TSS2_RC yaml_scalar_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out) {{
+        TSS2_RC yaml_internal_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out) {{
         
             return yaml_common_generic_scalar_unmarshal(in, len, out);
         }}
         """)
 
         fn_proto_snippet = textwrap.dedent("""
-        TSS2_RC yaml_scalar_{type_name}_generic_marshal(const datum *in, char **out);
-        TSS2_RC yaml_scalar_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out);
+        TSS2_RC yaml_internal_{type_name}_generic_marshal(const datum *in, char **out);
+        TSS2_RC yaml_internal_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out);
         """)
 
-        for type_name in needed_leafs:
-            src_code = fn_snippet.format(type_name=type_name)
+        for t in needed_leafs:
+            if not isinstance(t, CScalar):
+                # TODO AUTOGENERATE INTERNALS FOR STRUCT TYPES!
+                continue
+            type_name = t.name
+            src_code = scalar_fn_snippet.format(type_name=type_name)
             hdr_code = fn_proto_snippet.format(type_name=type_name)
             
             src_file.write(src_code)
@@ -844,22 +833,6 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
         hdr_file.write(hdr_epilogue)
 
-
-#
-# def callable_all_protos():
-#     callable_tpm2b_protos()
-#     callable_tpms_protos()
-#
-#
-# def callable_all_test_list():
-#     callable_tpm2b_test_list()
-#     callabale_tpms_simple_test_list()
-#
-#
-# def callable_tpmu_types():
-#     for _, obj in inspect.getmembers(tpm2_pytss):
-#         if inspect.isclass(obj) and obj.__name__.startswith("TPMU"):
-#             print(obj.__name__)
 
 def generate_protos(proj_root:str, needed_protos: list[str]):
     
@@ -921,10 +894,15 @@ if __name__ == "__main__":
     cprsr = CTypeParser(include_file)
     cprsr.parse()
 
-    # Complex TPM2B's DO NOT have a type, instead the underlying TPMT or TPMS is used directly
+    # Note: Complex TPM2B's DO NOT have a type, instead the underlying TPMT or TPMS is used directly
     needed_protos = []
     needed_leafs = []
     generate_simple_tpm2bs(cprsr, proj_root, needed_protos)
+    
+    # BILLS NOTES:
+    # Handle the TODOs FIST, then move onto TPMT and TPMU types.
+    # TODO COMPLEX TPM2BS CANNOT FALLBACK TO a Tss2_MU_YAML external routine, they need special handlers!
+    # TODO ALL public external functions need an internal generic equivelent
     generate_tpms_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
     
     #generate_tpmt_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
