@@ -782,6 +782,25 @@ def generate_complex_code_gen(
             parsers = []
 
             field_map = type_.fields
+            # if it contains a TPMU subfield, we DROP the selector, so figure it out
+            found_selector = None
+            has_union_field = any(isinstance(x, CUnion) for x in field_map.values())
+            if has_union_field:
+                possible_selectors = [
+                    key
+                    for key, value in field_map.items()
+                    if isinstance(value, CScalar)
+                ]
+                if len(possible_selectors) != 1:
+                    if "type" in possible_selectors:
+                        possible_selectors = "type"
+                    else:
+                        raise RuntimeError(
+                            f"Unexpected, Cannot handle {len(possible_selectors)} union selectors"
+                        )
+                elif len(possible_selectors) == 1:
+                    found_selector = possible_selectors[0]
+
             for field_name, field_type in field_map.items():
                 # TODO we don't want to call the default scalar handler if we have
                 # scalar names, ie TPM2_ALG_ID for sha256...
@@ -805,13 +824,22 @@ def generate_complex_code_gen(
                 else:
                     fn_name = f"yaml_internal_{resolved_type.name}"
 
-                emitters.append(
-                    f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {fn_name}_marshal)'
-                )
+                if has_union_field and found_selector == field_name:
+                    emitters.append(
+                        f'    KVP_ADD_MARSHAL("{field_name}", 0, NULL, NULL)'
+                    )
 
-                parsers.append(
-                    f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {fn_name}_unmarshal)'
-                )
+                    parsers.append(
+                        f'    KVP_ADD_UNMARSHAL("{field_name}", 0, NULL, NULL)'
+                    )
+                else:
+                    emitters.append(
+                        f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {fn_name}_marshal)'
+                    )
+
+                    parsers.append(
+                        f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {fn_name}_unmarshal)'
+                    )
 
             emitters = ",\n    ".join(emitters)
             parsers = ",\n    ".join(parsers)

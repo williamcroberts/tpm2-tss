@@ -261,6 +261,14 @@ TSS2_RC add_kvp(yaml_document_t *doc, int root, const key_value *k) {
         return TSS2_RC_SUCCESS;
     }
 
+    /*
+     * skip handling things that are not being marshalled/unmarshalled like
+     * selectors for TPMUs.
+     */
+    if (!k->value.data) {
+        return TSS2_RC_SUCCESS;
+    }
+
     int key = yaml_document_add_scalar(doc, YAML_STR_TAG, \
                 (yaml_char_t *)k->key, -1, YAML_ANY_SCALAR_STYLE);
     return_yaml_rc(key);
@@ -417,6 +425,11 @@ static TSS2_RC handle_mapping_scalar_key(const char *key, key_value *dest, size_
 static TSS2_RC handle_mapping_scalar_value(const char *value, key_value *dest, size_t dest_len, parser_state *state) {
 
     assert(state->cur);
+
+    /* We shouldn't hit keys for selectors on UNIONS, as public API doesn't include them */
+    if (state->cur->value.unmarshal) {
+        return TSS2_MU_RC_BAD_VALUE;
+    }
 
     // TODO plumb len in
     TSS2_RC rc = state->cur->value.unmarshal(value, strlen(value), &state->cur->value);

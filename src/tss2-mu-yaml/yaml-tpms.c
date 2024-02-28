@@ -552,7 +552,7 @@ Tss2_MU_YAML_TPMS_CAPABILITY_DATA_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("capability", sizeof(src->capability), &src->capability, yaml_internal_uint32_t_scalar_marshal),
+        KVP_ADD_MARSHAL("capability", 0, NULL, NULL),
         KVP_ADD_MARSHAL("data", sizeof(src->data), &src->data, yaml_internal_TPMU_CAPABILITIES_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
@@ -581,7 +581,7 @@ Tss2_MU_YAML_TPMS_CAPABILITY_DATA_Unmarshal(
     TPMS_CAPABILITY_DATA tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("capability", sizeof(tmp_dest.capability), &tmp_dest.capability, yaml_internal_uint32_t_scalar_unmarshal),
+        KVP_ADD_UNMARSHAL("capability", 0, NULL, NULL),
         KVP_ADD_UNMARSHAL("data", sizeof(tmp_dest.data), &tmp_dest.data, yaml_internal_TPMU_CAPABILITIES_unmarshal)
     };
 
