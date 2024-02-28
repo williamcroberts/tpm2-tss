@@ -8,7 +8,7 @@
 #include "yaml-common.h"
 #include "tss2_tpm2_types.h"
 
-#include "yaml-scalar.h"
+#include "yaml-internal.h"
 
 #define LOGMODULE yaml_marshal
 #include "util/log.h"

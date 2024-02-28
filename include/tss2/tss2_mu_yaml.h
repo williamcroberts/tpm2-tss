@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
+
 #include "tss2_tpm2_types.h"
 
 TSS2_RC

@@ -495,19 +495,18 @@ TSS2_RC yaml_common_generic_scalar_unmarshal(const char *data, size_t len, datum
 
     TSS2_RC rc = TSS2_MU_RC_BAD_VALUE;
     /* zero length data is interpreted as NUL terminated C string */
-    bool should_free = false;
+    char *tmp = NULL;
     const char *nul_term = NULL;
     if (!len) {
         nul_term = data;
     } else {
-        should_free = true;
-        nul_term = calloc(1, len + 1);
-        if (!nul_term) {
+        tmp = calloc(1, len + 1);
+        if (!tmp) {
             return TSS2_MU_RC_MEMORY;
         }
+        memcpy(tmp, data, len);
+        nul_term = tmp;
     }
-
-    memcpy(nul_term, data, len);
 
     char *endptr = NULL;
     errno = 0;
@@ -527,9 +526,7 @@ TSS2_RC yaml_common_generic_scalar_unmarshal(const char *data, size_t len, datum
     rc = TSS2_RC_SUCCESS;
 
 out:
-    if (should_free) {
-        free(nul_term);
-    }
+    free(tmp);
     return rc;
 }
 
@@ -568,7 +565,7 @@ TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out) {
         }
     }
 
-    return generic_scalar_marshal(*id, out);
+    return yaml_common_generic_scalar_marshal(*id, out);
 }
 
 TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *alg, size_t len, datum *value) {
@@ -589,7 +586,7 @@ TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *alg, size_t len, datum *value)
         }
     }
 
-    return generic_scalar_unmarshal(alg, value);
+    return yaml_common_generic_scalar_unmarshal(alg, len, value);
 }
 
 TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out) {
@@ -625,7 +622,7 @@ TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out) {
             details &= ~TPMA_ALGORITHM_METHOD;
             strcat(p, ",method");
         } else {
-            return generic_scalar_marshal(*d, out);
+            return yaml_common_generic_scalar_marshal(*d, out);
         }
     }
 
@@ -679,7 +676,7 @@ TSS2_RC TPMA_ALGORITHM_generic_unmarshal(const char *in, size_t len, datum *out)
         } else if (!strcmp(token, "method")) {
             *result |= TPMA_ALGORITHM_METHOD;
         } else {
-            return generic_scalar_unmarshal(in, out);
+            return yaml_common_generic_scalar_unmarshal(in, len, out);
         }
     }
 

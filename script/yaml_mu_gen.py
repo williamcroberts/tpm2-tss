@@ -53,6 +53,9 @@ class _CMagicEq(object):
             return result_eq or result_gt
         return NotImplemented
 
+    def __hash__(self):
+        return hash(self.name)
+
 
 class CComplex(_CMagicEq):
     @property
@@ -457,7 +460,9 @@ def callable_tpm2b_test_list():
         print_cmocka_test(s.__name__)
 
 
-def generate_simple_tpm2bs(cprsr: CTypeParser, proj_root: str, needed_protos: list[str]):
+def generate_simple_tpm2bs(
+    cprsr: CTypeParser, proj_root: str, needed_protos: list[str]
+):
     epilogue = textwrap.dedent(
         r"""/* SPDX-License-Identifier: BSD-2-Clause */
     /* AUTOGENRATED CODE DO NOT MODIFY */
@@ -562,7 +567,6 @@ def generate_simple_tpm2bs(cprsr: CTypeParser, proj_root: str, needed_protos: li
             needed_protos.append(name)
 
 
-
 def get_tpms_simple():
     l = []
     for _, obj in inspect.getmembers(tpm2_pytss):
@@ -636,7 +640,12 @@ def type_to_root(scalar_map: dict, scalar: CScalar) -> CScalar:
     return resolved
 
 
-def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: list[str], needed_leafs: list[str]):
+def generate_tpms_code_gen(
+    cprsr: CTypeParser,
+    proj_root: str,
+    needed_protos: list[str],
+    needed_leafs: list[str],
+):
     epilogue = textwrap.dedent(
         """    /* SPDX-License-Identifier: BSD-2-Clause */
     /* AUTOGENRATED CODE DO NOT MODIFY */
@@ -724,7 +733,7 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
         for name, type_ in type_map["struct"].items():
             if not (name.startswith("TPMS_") and isinstance(type_, CStruct)):
                 continue
-            
+
             needed_protos.append(name)
 
             emitters = []
@@ -736,7 +745,7 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
                     resolved_type = type_to_root(
                         type_map["scalar"], type_map["scalar"][field_type]
                     )
-                    
+
                 elif field_type in type_map["struct"]:
                     resolved_type = type_map["struct"][field_type]
                 elif field_type in type_map["union"]:
@@ -745,7 +754,7 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
                     raise RuntimeError(f"Unknown type: {field_type}")
 
                 if resolved_type.name not in needed_leafs:
-                    needed_leafs.append(resolved_type)
+                    bisect.insort(needed_leafs, resolved_type)
 
                 fn_name = f"yaml_internal_{resolved_type.name}"
 
@@ -757,7 +766,6 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
                     f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {fn_name}_unmarshal)'
                 )
 
-
             emitters = ",\n    ".join(emitters)
             parsers = ",\n    ".join(parsers)
 
@@ -765,40 +773,61 @@ def generate_tpms_code_gen(cprsr: CTypeParser, proj_root: str, needed_protos: li
             fmt = func.format(emitters=emitters, parsers=parsers, name=name)
             f.write(fmt)
 
-def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
+def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
     spdx = "/* SPDX-License-Identifier: BSD-2-Clause */"
 
-    hdr_prologue = textwrap.dedent(f"""
+    hdr_prologue = textwrap.dedent(
+        f"""
     {spdx}
     #ifndef SRC_TSS2_MU_YAML_YAML_SCALAR_H_
     #define SRC_TSS2_MU_YAML_YAML_SCALAR_H_
 
     /* forward declare to break cyclic dependency on yaml-common.h */
     typedef struct datum datum;
-    """)
+    """
+    )
 
-    src_prolog = textwrap.dedent(f"""
+    src_prolog = textwrap.dedent(
+        f"""
     {spdx}
+    #ifdef HAVE_CONFIG_H
+    #include <config.h>
+    #endif
+
+    #include <assert.h>
+
+    #include "tss2_mu_yaml.h"
     #include "yaml-common.h"
     #include "yaml-internal.h"
-    """)
+    """
+    )
 
-    hdr_epilogue = textwrap.dedent("""
+    hdr_epilogue = textwrap.dedent(
+        """
     #endif /* SRC_TSS2_MU_YAML_YAML_SCALAR_H_ */
-    """)
+    """
+    )
+
+    # de-dupe the needed leafs ordered list
+    needed_leafs = list(set(needed_leafs))
 
     with ExitStack() as stack:
-        src_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-internal.c"), "w+t")
+        src_file = open(
+            os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-internal.c"), "w+t"
+        )
         stack.enter_context(src_file)
-        hdr_file = open(os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-internal.h"), "w+t")
+        hdr_file = open(
+            os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-internal.h"), "w+t"
+        )
         stack.enter_context(hdr_file)
-    
+
         hdr_file.write(hdr_prologue)
         src_file.write(src_prolog)
-    
-        scalar_fn_snippet = textwrap.dedent("""
-        TSS2_RC yaml_internal_{type_name}_generic_marshal(const datum *in, char **out)
+
+        scalar_fn_snippet = textwrap.dedent(
+            """
+        TSS2_RC yaml_internal_{type_name}_marshal(const datum *in, char **out)
         {{
             assert(in);
             assert(out);
@@ -806,38 +835,68 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
         
             const {type_name} *x = (const {type_name} *)in->data;
         
-            return yaml_common_generic_scalar_marshal(x, out);
+            return yaml_common_generic_scalar_marshal(*x, out);
         }}
         
-        TSS2_RC yaml_internal_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out) {{
+        TSS2_RC yaml_internal_{type_name}_unmarshal(const char *in, size_t len, datum *out) {{
         
             return yaml_common_generic_scalar_unmarshal(in, len, out);
         }}
-        """)
+        """
+        )
 
-        fn_proto_snippet = textwrap.dedent("""
-        TSS2_RC yaml_internal_{type_name}_generic_marshal(const datum *in, char **out);
-        TSS2_RC yaml_internal_{type_name}_generic_unmarshal(const char *in, size_t len, datum *out);
-        """)
+        complex_fn_snippet = textwrap.dedent(
+            """
+        TSS2_RC yaml_internal_{type_name}_marshal(const datum *in, char **out)
+        {{
+            assert(in);
+            assert(out);
+            assert(sizeof({type_name}) == in->size);
+        
+            const {type_name} *x = (const {type_name} *)in->data;
+        
+            return Tss2_MU_YAML_{type_name}_Marshal(x, out);
+        }}
+
+        TSS2_RC yaml_internal_{type_name}_unmarshal(const char *in, size_t len, datum *out) {{
+        
+            assert(in);
+            assert(out);
+            assert(sizeof({type_name}) == out->size);
+        
+            {type_name} *x = ({type_name} *)out->data;
+        
+            return Tss2_MU_YAML_{type_name}_Unmarshal(in, len, x);
+        }}
+        """
+        )
+
+        fn_proto_snippet = textwrap.dedent(
+            """
+        TSS2_RC yaml_internal_{type_name}_marshal(const datum *in, char **out);
+        TSS2_RC yaml_internal_{type_name}_unmarshal(const char *in, size_t len, datum *out);
+        """
+        )
 
         for t in needed_leafs:
-            if not isinstance(t, CScalar):
-                # TODO AUTOGENERATE INTERNALS FOR STRUCT TYPES!
-                continue
             type_name = t.name
-            src_code = scalar_fn_snippet.format(type_name=type_name)
+
+            code_snippet = (
+                complex_fn_snippet if isinstance(t, CComplex) else scalar_fn_snippet
+            )
+
+            src_code = code_snippet.format(type_name=type_name)
             hdr_code = fn_proto_snippet.format(type_name=type_name)
-            
+
             src_file.write(src_code)
             hdr_file.write(hdr_code)
 
         hdr_file.write(hdr_epilogue)
 
 
-def generate_protos(proj_root:str, needed_protos: list[str]):
-    
+def generate_protos(proj_root: str, needed_protos: list[str]):
     prologue = textwrap.dedent(
-    """
+        """
     /* SPDX-License-Identifier: BSD-2-Clause */
     /* AUTOGENERATED CODE DO NOT MODIFY */
 
@@ -848,26 +907,32 @@ def generate_protos(proj_root:str, needed_protos: list[str]):
     extern "C" {
     #endif
     
-    #include "tss2_tpm2_types.h"
-    """)
+    #include <stddef.h>
     
-    epilogue = textwrap.dedent(
+    #include "tss2_tpm2_types.h"
     """
+    )
+
+    epilogue = textwrap.dedent(
+        """
     #ifdef __cplusplus
     }
     #endif
 
     #endif /* INCLUDE_TSS2_TSS2_MU_YAML_H_ */
-    """)
+    """
+    )
 
     needed_protos.sort()
-    
-    with open(os.path.join(proj_root, "include", "tss2", "tss2_mu_yaml.h"), "w+t") as hdr:
+
+    with open(
+        os.path.join(proj_root, "include", "tss2", "tss2_mu_yaml.h"), "w+t"
+    ) as hdr:
         hdr.write(prologue)
-        
+
         for name in needed_protos:
             fn_block = textwrap.dedent(
-            f"""
+                f"""
             TSS2_RC
             Tss2_MU_YAML_{name}_Marshal(
                 {name} const *src,
@@ -878,10 +943,12 @@ def generate_protos(proj_root:str, needed_protos: list[str]):
                 const char *yaml,
                 size_t      yaml_len,
                 {name}     *dest);
-            """)
+            """
+            )
             hdr.write(fn_block)
 
         hdr.write(epilogue)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -898,15 +965,15 @@ if __name__ == "__main__":
     needed_protos = []
     needed_leafs = []
     generate_simple_tpm2bs(cprsr, proj_root, needed_protos)
-    
+
     # BILLS NOTES:
     # Handle the TODOs FIST, then move onto TPMT and TPMU types.
     # TODO COMPLEX TPM2BS CANNOT FALLBACK TO a Tss2_MU_YAML external routine, they need special handlers!
     # TODO ALL public external functions need an internal generic equivelent
     generate_tpms_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
-    
-    #generate_tpmt_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
+
+    # generate_tpmt_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
 
     generate_leafs(cprsr, proj_root, needed_leafs)
-    
+
     generate_protos(proj_root, needed_protos)
