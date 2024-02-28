@@ -803,3 +803,47 @@ TSS2_RC TPMA_ALGORITHM_generic_unmarshal(const char *in, size_t len, datum *out)
 
     return TSS2_RC_SUCCESS;
 }
+TSS2_RC Tss2_MU_YAML_TPML_PCR_SELECTION_Marshal(TPML_PCR_SELECTION const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPML_PCR_SELECTION_Unmarshal(const char *yaml, size_t yaml_len, TPML_PCR_SELECTION *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_ASYM_SCHEME_Marshal(TPMT_ASYM_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_ASYM_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMT_ASYM_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_ECC_SCHEME_Marshal(TPMT_ECC_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_ECC_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMT_ECC_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_HA_Marshal(TPMT_HA const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_HA_Unmarshal(const char *yaml, size_t yaml_len, TPMT_HA *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_KDF_SCHEME_Marshal(TPMT_KDF_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_KDF_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMT_KDF_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_KEYEDHASH_SCHEME_Marshal(TPMT_KEYEDHASH_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_KEYEDHASH_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMT_KEYEDHASH_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_RSA_SCHEME_Marshal(TPMT_RSA_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_RSA_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMT_RSA_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_SYM_DEF_OBJECT_Marshal(TPMT_SYM_DEF_OBJECT const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMT_SYM_DEF_OBJECT_Unmarshal(const char *yaml, size_t yaml_len, TPMT_SYM_DEF_OBJECT *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_ASYM_SCHEME_Marshal(TPMU_ASYM_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_ASYM_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMU_ASYM_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_ATTEST_Marshal(TPMU_ATTEST const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_ATTEST_Unmarshal(const char *yaml, size_t yaml_len, TPMU_ATTEST *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_CAPABILITIES_Marshal(TPMU_CAPABILITIES const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_CAPABILITIES_Unmarshal(const char *yaml, size_t yaml_len, TPMU_CAPABILITIES *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_HA_Marshal(TPMU_HA const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_HA_Unmarshal(const char *yaml, size_t yaml_len, TPMU_HA *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_KDF_SCHEME_Marshal(TPMU_KDF_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_KDF_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMU_KDF_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_PUBLIC_ID_Marshal(TPMU_PUBLIC_ID const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_PUBLIC_ID_Unmarshal(const char *yaml, size_t yaml_len, TPMU_PUBLIC_ID *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_PUBLIC_PARMS_Marshal(TPMU_PUBLIC_PARMS const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_PUBLIC_PARMS_Unmarshal(const char *yaml, size_t yaml_len, TPMU_PUBLIC_PARMS *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SCHEME_KEYEDHASH_Marshal(TPMU_SCHEME_KEYEDHASH const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SCHEME_KEYEDHASH_Unmarshal(const char *yaml, size_t yaml_len, TPMU_SCHEME_KEYEDHASH *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SENSITIVE_COMPOSITE_Marshal(TPMU_SENSITIVE_COMPOSITE const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SENSITIVE_COMPOSITE_Unmarshal(const char *yaml, size_t yaml_len, TPMU_SENSITIVE_COMPOSITE *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SIGNATURE_Marshal(TPMU_SIGNATURE const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SIGNATURE_Unmarshal(const char *yaml, size_t yaml_len, TPMU_SIGNATURE *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SIG_SCHEME_Marshal(TPMU_SIG_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SIG_SCHEME_Unmarshal(const char *yaml, size_t yaml_len, TPMU_SIG_SCHEME *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SYM_KEY_BITS_Marshal(TPMU_SYM_KEY_BITS const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SYM_KEY_BITS_Unmarshal(const char *yaml, size_t yaml_len, TPMU_SYM_KEY_BITS *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SYM_MODE_Marshal(TPMU_SYM_MODE const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
+TSS2_RC Tss2_MU_YAML_TPMU_SYM_MODE_Unmarshal(const char *yaml, size_t yaml_len, TPMU_SYM_MODE *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
+
+
