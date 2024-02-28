@@ -17,6 +17,7 @@ import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
 from contextlib import ExitStack
 
+
 class _CMagic(object):
     def __eq__(self, other):
         if isinstance(other, _CMagic):
@@ -62,13 +63,14 @@ class _CMagic(object):
     def __repr__(self) -> str:
         return self.name
 
+
 class CType(_CMagic):
     @property
     def name(self):
         return self._name
 
-class CComplex(CType):
 
+class CComplex(CType):
     def __init__(self, name: str, fields: dict):
         self._name = name
         self._fields = fields
@@ -95,8 +97,8 @@ class CComplex(CType):
     def __contains__(self, key: str) -> bool:
         return key in self.fields
 
+
 class CStruct(CComplex):
-    
     @property
     def is_tpms(self) -> bool:
         return self.name.startswith("TPMS_")
@@ -112,22 +114,24 @@ class CStruct(CComplex):
     @property
     def is_tpm2b_simple(self) -> bool:
         return self.name.startswith("TPM2B_") and len(self) == 2 and "size" in self
-    
+
+
 class CUnion(CComplex):
     pass
+
 
 class CArray(CType):
     def __init__(self, name: str, base_type: "CScalar"):
         # name keeps it distinct from the base type ie UINT8 vs UINT8[]
         self._name = f"{name}[]"
         self._scalar = base_type
-    
+
     @property
     def scalar(self) -> "CScalar":
         return self._scalar
 
-class CScalar(CType):
 
+class CScalar(CType):
     @property
     def alias(self) -> Optional["CScalar"]:
         return self._alias
@@ -148,15 +152,17 @@ class CScalar(CType):
     @property
     def signed(self):
         return self._signed
-        
-    
+
+
 class CDefine(CType):
     def __init__(self, name: str, value: int):
         self._value = value
         super().__init__(name)
+
     @property
     def value(self):
         return self._value
+
 
 class CTypeParser(object):
     def __init__(self, include_path: str):
@@ -232,7 +238,9 @@ class CTypeParser(object):
             return (int(y["sizeof"]), bool(y["signed"]))
 
     @staticmethod
-    def _parse_struct_decl(decl: pycparser.c_ast.Struct, seen: dict[str, CType]) -> dict[str, CType]:
+    def _parse_struct_decl(
+        decl: pycparser.c_ast.Struct, seen: dict[str, CType]
+    ) -> dict[str, CType]:
         struct_name = decl.name
         field_map = {}
 
@@ -247,7 +255,7 @@ class CTypeParser(object):
                 else:
                     sub_type = field_type.type
                     first_type = str(sub_type.names[0])
-                    
+
                     resolved_type = seen[first_type]
                     field_map[field_name] = resolved_type
         return struct_name, field_map
@@ -259,15 +267,15 @@ class CTypeParser(object):
         ast = parser.parse(preprocessed_code, filename=self.include_path)
 
         seen = {
-            "int" :      CScalar("int",      size=-1, signed=True),
-            "int8_t" :   CScalar("int8_t",   size=1,  signed=True),
-            "uint8_t" :  CScalar("uint8_t",  size=1,  signed=False),
-            "int16_t" :  CScalar("int16_t",  size=2,  signed=True),
-            "uint16_t" : CScalar("uint16_t", size=2,  signed=False),
-            "int32_t" :  CScalar("int32_t",  size=4,  signed=True),
-            "uint32_t":  CScalar("uint32_t", size=4,  signed=False),
-            "int64_t" :  CScalar("int64_t",  size=8,  signed=True),
-            "uint64_t":  CScalar("uint64_t", size=8,  signed=False),
+            "int": CScalar("int", size=-1, signed=True),
+            "int8_t": CScalar("int8_t", size=1, signed=True),
+            "uint8_t": CScalar("uint8_t", size=1, signed=False),
+            "int16_t": CScalar("int16_t", size=2, signed=True),
+            "uint16_t": CScalar("uint16_t", size=2, signed=False),
+            "int32_t": CScalar("int32_t", size=4, signed=True),
+            "uint32_t": CScalar("uint32_t", size=4, signed=False),
+            "int64_t": CScalar("int64_t", size=8, signed=True),
+            "uint64_t": CScalar("uint64_t", size=8, signed=False),
         }
 
         for node in ast.ext:
@@ -317,8 +325,13 @@ class CTypeParser(object):
 
     def get_type_map(self, ctype: CType = None) -> dict[str, CType]:
         if ctype:
-            return { key: value for key, value in self._type_map.items() if isinstance(value, ctype) }
+            return {
+                key: value
+                for key, value in self._type_map.items()
+                if isinstance(value, ctype)
+            }
         return self._type_map
+
 
 def get_subclasses(base_class, package):
     subclasses = []
@@ -934,13 +947,12 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
         )
 
         for t in needed_leafs:
-            
             # we don't need a special function for UINT8 vs UINT8[] becuase everything
             # internally is passed by pointer with sizeof() and sizeof will resolve properly
             if isinstance(t, CArray):
                 continue
-            
-            type_name = t.name 
+
+            type_name = t.name
 
             extra = ""
             if isinstance(t, CComplex):
@@ -1041,10 +1053,9 @@ if __name__ == "__main__":
         cprsr, proj_root, "yaml-tpmt", "TPMT_", needed_protos, needed_leafs
     )
 
-    #generate_union_code_gen(
+    # generate_union_code_gen(
     #    cprsr, proj_root, needed_protos, needed_leafs
-    #)
-
+    # )
 
     # TODO TPMU
     # TODO TPML
