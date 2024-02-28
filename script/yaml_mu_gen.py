@@ -640,9 +640,11 @@ def type_to_root(scalar_map: dict, scalar: CScalar) -> CScalar:
     return resolved
 
 
-def generate_tpms_code_gen(
+def generate_complex_code_gen(
     cprsr: CTypeParser,
     proj_root: str,
+    file_name: str,
+    prefix: str,
     needed_protos: list[str],
     needed_leafs: list[str],
 ):
@@ -725,13 +727,13 @@ def generate_tpms_code_gen(
     type_map = cprsr.get_type_map()
 
     with open(
-        os.path.join(proj_root, "src", "tss2-mu-yaml", "yaml-tpms.c"), "w+t"
+        os.path.join(proj_root, "src", "tss2-mu-yaml", f"{file_name}.c"), "w+t"
     ) as f:
         f.write(epilogue)
         f.write("\n")
 
         for name, type_ in type_map["struct"].items():
-            if not (name.startswith("TPMS_") and isinstance(type_, CStruct)):
+            if not (name.startswith(prefix) and isinstance(type_, CStruct)):
                 continue
 
             needed_protos.append(name)
@@ -968,11 +970,15 @@ if __name__ == "__main__":
 
     # BILLS NOTES:
     # Handle the TODOs FIST, then move onto TPMT and TPMU types.
-    # TODO COMPLEX TPM2BS CANNOT FALLBACK TO a Tss2_MU_YAML external routine, they need special handlers!
-    # TODO ALL public external functions need an internal generic equivelent
-    generate_tpms_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
+    generate_complex_code_gen(
+        cprsr, proj_root, "yaml-tpms", "TPMS_", needed_protos, needed_leafs
+    )
+    generate_complex_code_gen(
+        cprsr, proj_root, "yaml-tpmt", "TPMT_", needed_protos, needed_leafs
+    )
 
-    # generate_tpmt_code_gen(cprsr, proj_root, needed_protos, needed_leafs)
+    # TODO TPMU
+    # TODO TPML
 
     generate_leafs(cprsr, proj_root, needed_leafs)
 

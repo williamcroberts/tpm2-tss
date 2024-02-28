@@ -1080,6 +1080,204 @@ Tss2_MU_YAML_TPMS_TIME_INFO_Unmarshal(
     size_t      yaml_len,
     TPMS_TIME_INFO     *dest);
 
+TSS2_RC
+Tss2_MU_YAML_TPMT_ASYM_SCHEME_Marshal(
+    TPMT_ASYM_SCHEME const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_ASYM_SCHEME_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_ASYM_SCHEME     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_ECC_SCHEME_Marshal(
+    TPMT_ECC_SCHEME const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_ECC_SCHEME_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_ECC_SCHEME     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_HA_Marshal(
+    TPMT_HA const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_HA_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_HA     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_KDF_SCHEME_Marshal(
+    TPMT_KDF_SCHEME const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_KDF_SCHEME_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_KDF_SCHEME     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_KEYEDHASH_SCHEME_Marshal(
+    TPMT_KEYEDHASH_SCHEME const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_KEYEDHASH_SCHEME_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_KEYEDHASH_SCHEME     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_PUBLIC_Marshal(
+    TPMT_PUBLIC const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_PUBLIC_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_PUBLIC     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_PUBLIC_PARMS_Marshal(
+    TPMT_PUBLIC_PARMS const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_PUBLIC_PARMS_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_PUBLIC_PARMS     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_RSA_DECRYPT_Marshal(
+    TPMT_RSA_DECRYPT const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_RSA_DECRYPT_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_RSA_DECRYPT     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_RSA_SCHEME_Marshal(
+    TPMT_RSA_SCHEME const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_RSA_SCHEME_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_RSA_SCHEME     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SENSITIVE_Marshal(
+    TPMT_SENSITIVE const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SENSITIVE_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_SENSITIVE     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SIGNATURE_Marshal(
+    TPMT_SIGNATURE const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SIGNATURE_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_SIGNATURE     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SIG_SCHEME_Marshal(
+    TPMT_SIG_SCHEME const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SIG_SCHEME_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_SIG_SCHEME     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SYM_DEF_Marshal(
+    TPMT_SYM_DEF const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SYM_DEF_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_SYM_DEF     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SYM_DEF_OBJECT_Marshal(
+    TPMT_SYM_DEF_OBJECT const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_SYM_DEF_OBJECT_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_SYM_DEF_OBJECT     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_AUTH_Marshal(
+    TPMT_TK_AUTH const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_AUTH_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_TK_AUTH     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_CREATION_Marshal(
+    TPMT_TK_CREATION const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_CREATION_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_TK_CREATION     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_HASHCHECK_Marshal(
+    TPMT_TK_HASHCHECK const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_HASHCHECK_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_TK_HASHCHECK     *dest);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_VERIFIED_Marshal(
+    TPMT_TK_VERIFIED const *src,
+    char        **yaml);
+
+TSS2_RC
+Tss2_MU_YAML_TPMT_TK_VERIFIED_Unmarshal(
+    const char *yaml,
+    size_t      yaml_len,
+    TPMT_TK_VERIFIED     *dest);
+
 #ifdef __cplusplus
 }
 #endif
