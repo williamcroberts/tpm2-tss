@@ -76,8 +76,26 @@ TSS2_RC yaml_parse(const char *yaml, size_t size, key_value *dest, size_t dest_l
 TSS2_RC tpm2b_simple_generic_marshal(const datum *in, char **out);
 TSS2_RC tpm2b_simple_generic_unmarshal(const char *in, size_t len, datum *out);
 
-TSS2_RC yaml_common_generic_scalar_marshal(uint64_t data, char **result);
-TSS2_RC yaml_common_generic_scalar_unmarshal(const char *data, size_t len, datum *result);
+TSS2_RC yaml_common_generic_marshal(const datum *data, char **out);
+TSS2_RC yaml_common_generic_unmarshal(const char *in, size_t len, datum *out);
+
+TSS2_RC yaml_common_scalar_int8_t_marshal(int8_t in, char **out);
+TSS2_RC yaml_common_scalar_uint8_t_marshal(uint8_t in, char **out);
+TSS2_RC yaml_common_scalar_int16_t_marshal(int16_t in, char **out);
+TSS2_RC yaml_common_scalar_uint16_t_marshal(uint16_t in, char **out);
+TSS2_RC yaml_common_scalar_int32_t_marshal(int32_t in, char **out);
+TSS2_RC yaml_common_scalar_uint32_t_marshal(uint32_t in, char **out);
+TSS2_RC yaml_common_scalar_int64_t_marshal(int64_t in, char **out);
+TSS2_RC yaml_common_scalar_uint64_t_marshal(uint64_t in, char **out);
+
+TSS2_RC yaml_common_scalar_int8_t_unmarshal(const char *in, size_t len, int8_t *out);
+TSS2_RC yaml_common_scalar_uint8_t_unmarshal(const char *in, size_t len, uint8_t *out);
+TSS2_RC yaml_common_scalar_int16_t_unmarshal(const char *in, size_t len, int16_t *out);
+TSS2_RC yaml_common_scalar_uint16_t_unmarshal(const char *in, size_t len, uint16_t *out);
+TSS2_RC yaml_common_scalar_int32_t_unmarshal(const char *in, size_t len, int32_t *out);
+TSS2_RC yaml_common_scalar_uint32_t_unmarshal(const char *in, size_t len, uint32_t *out);
+TSS2_RC yaml_common_scalar_int64_t_unmarshal(const char *in, size_t len, int64_t *out);
+TSS2_RC yaml_common_scalar_uint64_t_unmarshal(const char *in, size_t len, uint64_t *out);
 
 TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out);
 TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *in, size_t len, datum *out);

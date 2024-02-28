@@ -6,11 +6,14 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <inttypes.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "util/aux_util.h"
 #include "util/tpm2b.h"
+#include "util/tss2_endian.h"
 
 #include "yaml-common.h"
 
@@ -40,6 +43,90 @@ static int yaml_add_str(yaml_document_t *doc, const char *str) {
             (yaml_char_t *)str ? str : NULL_STR, -1, YAML_ANY_SCALAR_STYLE);
 }
 
+/* an 64 bit is 20 chars max in base 10 PLUS a sign plus a nul, this is plenty big */
+#define MAX_CHARS 32
+
+#define IMPLEMENT_SCALAR_MARSHAL(type, fmt) \
+    TSS2_RC yaml_common_scalar_##type##_marshal(type in, char **out) \
+    { \
+        assert(out); \
+        \
+        char *x = calloc(1, MAX_CHARS); \
+        return_if_null(x, "Out of memory.", TSS2_MU_RC_MEMORY); \
+        snprintf(x, MAX_CHARS, fmt, in); \
+        *out = x; \
+        return TSS2_RC_SUCCESS; \
+    }
+
+IMPLEMENT_SCALAR_MARSHAL(int8_t, PRId8)
+IMPLEMENT_SCALAR_MARSHAL(uint8_t, PRIu8)
+IMPLEMENT_SCALAR_MARSHAL(int16_t, PRId16)
+IMPLEMENT_SCALAR_MARSHAL(uint16_t, PRIu16)
+IMPLEMENT_SCALAR_MARSHAL(int32_t, PRId32)
+IMPLEMENT_SCALAR_MARSHAL(uint32_t, PRIu32)
+IMPLEMENT_SCALAR_MARSHAL(int64_t, PRId64)
+IMPLEMENT_SCALAR_MARSHAL(uint64_t, PRIu64)
+
+#define _SCALAR_UNMARSHAL_LINE unsigned long long result = strtoull(in, &endptr, 10)
+#define IMPLEMENT_SCALAR_UNMARSHAL(type) \
+    TSS2_RC yaml_common_scalar_##type##_unmarshal(const char *in, size_t len, type *out) \
+    { \
+        assert(in); \
+        assert(out); \
+        \
+        char *endptr = NULL; \
+        errno = 0;  \
+        _SCALAR_UNMARSHAL_LINE; \
+        \
+        if ((errno == ERANGE && (result == ULLONG_MAX || result == 0)) || (errno != 0 && result == 0)) { \
+            LOG_ERROR("Could not convert: \"%s\" to integer", in); \
+            return TSS2_MU_RC_BAD_VALUE; \
+        } \
+        if (endptr == in) { \
+            LOG_ERROR("No digits were found.\n"); \
+            return TSS2_MU_RC_BAD_VALUE; \
+        } \
+        /* force truncation */ \
+        type tmp = (type)result; \
+        if (tmp != result) { \
+            LOG_ERROR("Truncation detected, got \"%s\""); \
+            return TSS2_MU_RC_BAD_VALUE; \
+        } \
+        \
+        *out = tmp; \
+        \
+        return TSS2_RC_SUCCESS; \
+    }
+
+IMPLEMENT_SCALAR_UNMARSHAL(uint8_t)
+IMPLEMENT_SCALAR_UNMARSHAL(uint16_t)
+IMPLEMENT_SCALAR_UNMARSHAL(uint32_t)
+IMPLEMENT_SCALAR_UNMARSHAL(uint64_t)
+#undef _SCALAR_UNMARSHAL_LINE
+
+#define _SCALAR_UNMARSHAL_LINE long long result = strtoll(in, &endptr, 10)
+IMPLEMENT_SCALAR_UNMARSHAL(int8_t)
+IMPLEMENT_SCALAR_UNMARSHAL(int16_t)
+IMPLEMENT_SCALAR_UNMARSHAL(int32_t)
+IMPLEMENT_SCALAR_UNMARSHAL(int64_t)
+#undef _SCALAR_UNMARSHAL_LINE
+
+TSS2_RC yaml_common_generic_marshal(const datum *data, char **out) {
+
+    char *hex_string = malloc(data->size * 2 + 1);
+    return_if_null(hex_string, "Out of memory.", TSS2_MU_RC_MEMORY);
+    char *buffer = (char *)data;
+    size_t i, off;
+    for (i = 0, off = 0; i < data->size; i++, off += 2) {
+        sprintf(&hex_string[off], "%02x", buffer[i]);
+    }
+
+    hex_string[data->size * 2] = '\0';
+    *out = hex_string;
+
+    return TSS2_RC_SUCCESS;
+}
+
 TSS2_RC tpm2b_simple_generic_marshal(const datum *in, char **out) {
 
     assert(in);
@@ -52,20 +139,17 @@ TSS2_RC tpm2b_simple_generic_marshal(const datum *in, char **out) {
         return TSS2_RC_SUCCESS;
     }
 
-    TPM2B_DATA x;
+    /*
+     * on TPM2B simples, datum->size is the tpm2b->size are the same, but
+     * we have to drop the data pointer down to an array of bytes, or the
+     * buffer field.
+     */
+    datum tmp = {
+        .size = tpm2b->size,
+        .data = tpm2b->buffer
+    };
 
-    char *hex_string = malloc((in->size) * 2 + 1);
-    return_if_null(hex_string, "Out of memory.", TSS2_MU_RC_MEMORY);
-    char *buffer = (char *)tpm2b->buffer;
-    size_t i, off;
-    for (i = 0, off = 0; i < in->size; i++, off += 2) {
-        sprintf(&hex_string[off], "%02x", buffer[i]);
-    }
-
-    hex_string[(in->size) * 2] = '\0';
-    *out = hex_string;
-
-    return TSS2_RC_SUCCESS;
+    return yaml_common_generic_marshal(&tmp, out);
 }
 
 static TSS2_RC hex_to_nibble(char c, unsigned *val) {
@@ -84,22 +168,19 @@ static TSS2_RC hex_to_nibble(char c, unsigned *val) {
     return TSS2_RC_SUCCESS;
 }
 
-TSS2_RC tpm2b_simple_generic_unmarshal(const char *hex, size_t len, datum *d) {
-    assert(d);
-    assert(hex);
+TSS2_RC yaml_common_generic_unmarshal(const char *in, size_t len, datum *out) {
+    assert(in);
+    assert(out);
     // TODO use?
     UNUSED(len);
-    UINT16 max = d->size;
 
-    TPM2B *tpm2b = (TPM2B *)d->data;
-
-    char *buffer = (char *)tpm2b->buffer;
-    char c = hex[0];
+    char *buffer = (char *)out->data;
+    char c = in[0];
     UINT16 i, offset;
     unsigned val;
     TSS2_RC rc;
-    for(i=0, offset=0; c != '\0'; i++, c = hex[i]) {
-        if (offset > max) {
+    for(i=0, offset=0; c != '\0'; i++, c = in[i]) {
+        if (offset > out->size) {
             LOG_ERROR("Out of bounds for data type");
             return TSS2_MU_RC_BAD_VALUE;
         }
@@ -126,7 +207,34 @@ TSS2_RC tpm2b_simple_generic_unmarshal(const char *hex, size_t len, datum *d) {
         return TSS2_MU_RC_BAD_VALUE;
     }
 
-    tpm2b->size = offset;
+    out->size = offset;
+
+    return TSS2_RC_SUCCESS;
+}
+
+
+TSS2_RC tpm2b_simple_generic_unmarshal(const char *hex, size_t len, datum *d) {
+    assert(d);
+    assert(hex);
+    // TODO use?
+    UNUSED(len);
+
+    TPM2B *tpm2b = (TPM2B *)d->data;
+
+    /* fill up a TPM2B based on this max size */
+    datum tmp = {
+        .size = d->size,
+        .data = tpm2b->buffer
+    };
+
+    /* populate data and reset size to what it is */
+    TSS2_RC rc = yaml_common_generic_unmarshal(hex,  d->size, &tmp);
+    if (rc != TSS2_RC_SUCCESS) {
+        return rc;
+    }
+
+    /* the tpm2b buffer field was populated directly, but populate the size field */
+    tpm2b->size = tmp.size;
 
     return TSS2_RC_SUCCESS;
 }
@@ -565,7 +673,7 @@ TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out) {
         }
     }
 
-    return yaml_common_generic_scalar_marshal(*id, out);
+    return yaml_common_scalar_uint8_t_marshal(*id, out);
 }
 
 TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *alg, size_t len, datum *value) {
@@ -586,7 +694,7 @@ TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *alg, size_t len, datum *value)
         }
     }
 
-    return yaml_common_generic_scalar_unmarshal(alg, len, value);
+    return yaml_common_scalar_uint16_t_unmarshal(alg, len, result);
 }
 
 TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out) {
@@ -622,7 +730,7 @@ TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out) {
             details &= ~TPMA_ALGORITHM_METHOD;
             strcat(p, ",method");
         } else {
-            return yaml_common_generic_scalar_marshal(*d, out);
+            return yaml_common_scalar_uint8_t_marshal(*d, out);
         }
     }
 
@@ -676,7 +784,7 @@ TSS2_RC TPMA_ALGORITHM_generic_unmarshal(const char *in, size_t len, datum *out)
         } else if (!strcmp(token, "method")) {
             *result |= TPMA_ALGORITHM_METHOD;
         } else {
-            return yaml_common_generic_scalar_unmarshal(in, len, out);
+            return yaml_common_scalar_uint32_t_unmarshal(in, len, result);
         }
     }
 

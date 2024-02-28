@@ -12,14 +12,14 @@ import pycparser
 import re
 import sys
 import tempfile
+from typing import Optional
 import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
 from contextlib import ExitStack
 
-
-class _CMagicEq(object):
+class _CMagic(object):
     def __eq__(self, other):
-        if isinstance(other, _CMagicEq):
+        if isinstance(other, _CMagic):
             return self.name == other.name
         return NotImplemented
 
@@ -30,7 +30,7 @@ class _CMagicEq(object):
         return NotImplemented
 
     def __lt__(self, other):
-        if isinstance(other, _CMagicEq):
+        if isinstance(other, _CMagic):
             return self.name < other.name
         return NotImplemented
 
@@ -42,7 +42,7 @@ class _CMagicEq(object):
         return NotImplemented
 
     def __gt__(self, other):
-        if isinstance(other, _CMagicEq):
+        if isinstance(other, _CMagic):
             return self.name > other.name
         return NotImplemented
 
@@ -56,50 +56,107 @@ class _CMagicEq(object):
     def __hash__(self):
         return hash(self.name)
 
+    def __str__(self):
+        return self.name
 
-class CComplex(_CMagicEq):
+    def __repr__(self) -> str:
+        return self.name
+
+class CType(_CMagic):
     @property
     def name(self):
         return self._name
 
-    @property
-    def fields(self):
-        return self._fields
+class CComplex(CType):
 
     def __init__(self, name: str, fields: dict):
         self._name = name
         self._fields = fields
 
-    def morph(self, new_name: str):
+    @property
+    def fields(self) -> dict[str, CType]:
+        return self._fields
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def morph(self, new_name: str) -> CType:
         deepcopy = copy.deepcopy(self)
         deepcopy._name = new_name
         return deepcopy
 
+    def __len__(self) -> int:
+        return len(self.fields)
+
+    def __getitem__(self, key: str) -> CType:
+        return self.fields[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.fields
 
 class CStruct(CComplex):
-    pass
+    
+    @property
+    def is_tpms(self) -> bool:
+        return self.name.startswith("TPMS_")
 
+    @property
+    def is_tpmt(self) -> bool:
+        return self.name.startswith("TPMU_")
 
+    @property
+    def is_tpm2b(self) -> bool:
+        return self.name.startswith("TPM2B_")
+
+    @property
+    def is_tpm2b_simple(self) -> bool:
+        return self.name.startswith("TPM2B_") and len(self) == 2 and "size" in self
+    
 class CUnion(CComplex):
     pass
 
-
-class CScalar(_CMagicEq):
+class CArray(CType):
+    def __init__(self, name: str, base_type: "CScalar"):
+        # name keeps it distinct from the base type ie UINT8 vs UINT8[]
+        self._name = f"{name}[]"
+        self._scalar = base_type
+    
     @property
-    def name(self):
-        return self._name
+    def scalar(self) -> "CScalar":
+        return self._scalar
+
+class CScalar(CType):
 
     @property
-    def alias(self) -> int:
+    def alias(self) -> Optional["CScalar"]:
         return self._alias
 
-    def __init__(self, name: str, alias: str):
+    def __init__(self, name: str, size: int, signed: bool, alias: str = None):
         self._name = name
+        self._size = size
+        self._signed = signed
         self._alias = None if name == alias else alias
 
-    def __str__(self):
-        return f"{self._name} : {self._alias}"
+    def __repr__(self) -> str:
+        return f"{self.name} : {self.alias}"
 
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def signed(self):
+        return self._signed
+        
+    
+class CDefine(CType):
+    def __init__(self, name: str, value: int):
+        self._value = value
+        super().__init__(name)
+    @property
+    def value(self):
+        return self._value
 
 class CTypeParser(object):
     def __init__(self, include_path: str):
@@ -126,7 +183,7 @@ class CTypeParser(object):
             if not value_match:
                 continue
 
-            defines[m[0]] = int(value_match.group(0), base=0)
+            defines[m[0]] = CDefine(m[0], int(value_match.group(0), base=0))
 
         return defines
 
@@ -175,7 +232,7 @@ class CTypeParser(object):
             return (int(y["sizeof"]), bool(y["signed"]))
 
     @staticmethod
-    def _parse_struct_decl(decl):
+    def _parse_struct_decl(decl: pycparser.c_ast.Struct, seen: dict[str, CType]) -> dict[str, CType]:
         struct_name = decl.name
         field_map = {}
 
@@ -184,16 +241,15 @@ class CTypeParser(object):
                 field_name = field_decl.name
                 field_type = field_decl.type
                 if isinstance(field_type, pycparser.c_ast.ArrayDecl):
-                    field_type = field_type.type
-
-                assert isinstance(field_type, pycparser.c_ast.TypeDecl)
-                try:
+                    base_type_name = field_type.type.type.names[0]
+                    base_type = seen[base_type_name]
+                    field_map[field_name] = CArray(base_type_name, base_type)
+                else:
                     sub_type = field_type.type
-                    first_type = sub_type.names[0]
-                except Exception as e:
-                    raise e
-                field_map[field_name] = str(first_type)
-
+                    first_type = str(sub_type.names[0])
+                    
+                    resolved_type = seen[first_type]
+                    field_map[field_name] = resolved_type
         return struct_name, field_map
 
     def parse(self) -> dict:
@@ -202,35 +258,17 @@ class CTypeParser(object):
         parser = pycparser.c_parser.CParser()
         ast = parser.parse(preprocessed_code, filename=self.include_path)
 
-        stdint_base_type = [
-            "int",  # include this becuase of typedef int BOOL
-            "int8_t",
-            "uint8_t",
-            "int16_t",
-            "uint16_t",
-            "int32_t",
-            "uint32_t",
-            "int64_t",
-            "uint64_t",
-        ]
-
-        tpm2_base_types = [
-            "INT8",
-            "INT16",
-            "INT32",
-            "INT64",
-            "UINT8",
-            "UINT16",
-            "UINT32",
-            "UINT64",
-            "BYTE",
-            "BOOL",
-        ]
-
-        scalar_type_map = {}
-        union_type_map = {}
-        struct_type_map = {}
-        typedef_type_map = {}
+        seen = {
+            "int" :      CScalar("int",      size=-1, signed=True),
+            "int8_t" :   CScalar("int8_t",   size=1,  signed=True),
+            "uint8_t" :  CScalar("uint8_t",  size=1,  signed=False),
+            "int16_t" :  CScalar("int16_t",  size=2,  signed=True),
+            "uint16_t" : CScalar("uint16_t", size=2,  signed=False),
+            "int32_t" :  CScalar("int32_t",  size=4,  signed=True),
+            "uint32_t":  CScalar("uint32_t", size=4,  signed=False),
+            "int64_t" :  CScalar("int64_t",  size=8,  signed=True),
+            "uint64_t":  CScalar("uint64_t", size=8,  signed=False),
+        }
 
         for node in ast.ext:
             if (
@@ -244,13 +282,12 @@ class CTypeParser(object):
                 and isinstance(node.type, pycparser.c_ast.Struct)
                 or isinstance(node.type, pycparser.c_ast.Union)
             ):
-                type_name, field_map = CTypeParser._parse_struct_decl(node.type)
+                type_name, field_map = CTypeParser._parse_struct_decl(node.type, seen)
 
                 if isinstance(node.type, pycparser.c_ast.Struct):
-                    struct_type_map[type_name] = CStruct(type_name, field_map)
+                    seen[type_name] = CStruct(type_name, field_map)
                 else:
-                    union_type_map[type_name] = CUnion(type_name, field_map)
-                    union_type_map[type_name] = CStruct(type_name, field_map)
+                    seen[type_name] = CUnion(type_name, field_map)
             elif isinstance(node, pycparser.c_ast.Typedef):
                 if isinstance(node.type, pycparser.c_ast.TypeDecl):
                     type_name = node.name
@@ -261,38 +298,27 @@ class CTypeParser(object):
                             raise ValueError(
                                 f"Should only have one alias, got: {len(aliases)}"
                             )
-                        if type_name in typedef_type_map:
+                        if type_name in seen:
                             raise RuntimeError(
-                                f"Expected only possible mapping for type: {type_name}, already had: {typedef_type_map[type_name]}"
+                                f"Expected only possible mapping for type: {type_name}, already had: {seen[type_name]}"
                             )
-                        # ie a UINT8 is a uint8_t
-
                         alias = aliases[0]
-                        if alias in struct_type_map:
-                            struct = struct_type_map[alias]
-                            new_struct = struct.morph(new_name=type_name)
-                            struct_type_map[type_name] = new_struct
-                        elif alias in union_type_map:
-                            union = union_type_map[alias]
-                            new_union = union.morph(new_name=type_name)
-                            union_type_map[type_name] = new_union
+                        resolved = seen[alias]
+                        if isinstance(resolved, CComplex):
+                            got = resolved.morph(new_name=type_name)
                         else:
-                            if alias in stdint_base_type or alias in tpm2_base_types:
-                                alias = None
+                            # ie a UINT8 is a uint8_t
+                            # TODO we don't want to resolve thiings that possibly
+                            # scalar like TPM2_ALG_ID
+                            got = resolved
+                        seen[type_name] = got
 
-                            scalar_type_map[type_name] = CScalar(type_name, alias)
+        self._type_map = seen
 
-        self._type_map = {
-            "struct": struct_type_map,
-            "union": union_type_map,
-            "scalar": scalar_type_map,
-            "typedef": typedef_type_map,
-            "defines": self._get_defines(),
-        }
-
-    def get_type_map(self) -> dict:
+    def get_type_map(self, ctype: CType = None) -> dict[str, CType]:
+        if ctype:
+            return { key: value for key, value in self._type_map.items() if isinstance(value, ctype) }
         return self._type_map
-
 
 def get_subclasses(base_class, package):
     subclasses = []
@@ -534,7 +560,7 @@ def generate_simple_tpm2bs(
         """
     )
 
-    all_structs = cprsr.get_type_map()["struct"]
+    all_structs = cprsr.get_type_map(CStruct)
     simples = []
     for k, v in all_structs.items():
         if not k.startswith("TPM2B_"):
@@ -724,7 +750,8 @@ def generate_complex_code_gen(
         """
     )
 
-    type_map = cprsr.get_type_map()
+    type_map = cprsr.get_type_map(CStruct)
+    scalar_type_map = cprsr.get_type_map(CScalar)
 
     with open(
         os.path.join(proj_root, "src", "tss2-mu-yaml", f"{file_name}.c"), "w+t"
@@ -732,8 +759,8 @@ def generate_complex_code_gen(
         f.write(epilogue)
         f.write("\n")
 
-        for name, type_ in type_map["struct"].items():
-            if not (name.startswith(prefix) and isinstance(type_, CStruct)):
+        for name, type_ in type_map.items():
+            if not name.startswith(prefix):
                 continue
 
             needed_protos.append(name)
@@ -743,22 +770,27 @@ def generate_complex_code_gen(
 
             field_map = type_.fields
             for field_name, field_type in field_map.items():
-                if field_type in type_map["scalar"]:
+                # TODO we don't want to call the default scalar handler if we have
+                # scalar names, ie TPM2_ALG_ID for sha256...
+                if isinstance(field_type, CScalar):
                     resolved_type = type_to_root(
-                        type_map["scalar"], type_map["scalar"][field_type]
+                        scalar_type_map, scalar_type_map[field_type.name]
                     )
-
-                elif field_type in type_map["struct"]:
-                    resolved_type = type_map["struct"][field_type]
-                elif field_type in type_map["union"]:
-                    resolved_type = type_map["union"][field_type]
+                elif isinstance(field_type, CType):
+                    resolved_type = field_type
                 else:
                     raise RuntimeError(f"Unknown type: {field_type}")
 
                 if resolved_type.name not in needed_leafs:
                     bisect.insort(needed_leafs, resolved_type)
 
-                fn_name = f"yaml_internal_{resolved_type.name}"
+                if isinstance(resolved_type, CScalar):
+                    fn_name = f"yaml_internal_{resolved_type.name}_scalar"
+                elif isinstance(resolved_type, CArray):
+                    assert resolved_type.scalar.size == 1
+                    fn_name = f"yaml_common_generic"
+                else:
+                    fn_name = f"yaml_internal_{resolved_type.name}"
 
                 emitters.append(
                     f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {fn_name}_marshal)'
@@ -829,6 +861,27 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
         scalar_fn_snippet = textwrap.dedent(
             """
+        TSS2_RC yaml_internal_{type_name}_scalar_marshal(const datum *in, char **out)
+        {{
+            assert(in);
+            assert(out);
+            assert(sizeof({type_name}) == in->size);
+        
+            const {type_name} *x = (const {type_name} *)in->data;
+        
+            return yaml_common_scalar_{type_name}_marshal(*x, out);
+        }}
+        
+        TSS2_RC yaml_internal_{type_name}_scalar_unmarshal(const char *in, size_t len, datum *out)
+        {{
+            assert(in);
+            return yaml_common_scalar_{type_name}_unmarshal(in, len, ({type_name} *)out->data);
+        }}
+        """
+        )
+
+        array_fn_snippet = textwrap.dedent(
+            """
         TSS2_RC yaml_internal_{type_name}_marshal(const datum *in, char **out)
         {{
             assert(in);
@@ -837,12 +890,12 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
         
             const {type_name} *x = (const {type_name} *)in->data;
         
-            return yaml_common_generic_scalar_marshal(*x, out);
+            return yaml_common_generic_marshal(x, len, out);
         }}
         
         TSS2_RC yaml_internal_{type_name}_unmarshal(const char *in, size_t len, datum *out) {{
         
-            return yaml_common_generic_scalar_unmarshal(in, len, out);
+            return yaml_common_generic_unmarshal(in, len, out);
         }}
         """
         )
@@ -875,20 +928,31 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
         fn_proto_snippet = textwrap.dedent(
             """
-        TSS2_RC yaml_internal_{type_name}_marshal(const datum *in, char **out);
-        TSS2_RC yaml_internal_{type_name}_unmarshal(const char *in, size_t len, datum *out);
+        TSS2_RC yaml_internal_{type_name}{extra}_marshal(const datum *in, char **out);
+        TSS2_RC yaml_internal_{type_name}{extra}_unmarshal(const char *in, size_t len, datum *out);
         """
         )
 
         for t in needed_leafs:
-            type_name = t.name
+            
+            # we don't need a special function for UINT8 vs UINT8[] becuase everything
+            # internally is passed by pointer with sizeof() and sizeof will resolve properly
+            if isinstance(t, CArray):
+                continue
+            
+            type_name = t.name 
 
-            code_snippet = (
-                complex_fn_snippet if isinstance(t, CComplex) else scalar_fn_snippet
-            )
+            extra = ""
+            if isinstance(t, CComplex):
+                code_snippet = complex_fn_snippet
+            elif isinstance(t, CArray):
+                code_snippet = array_fn_snippet
+            else:
+                extra = "_scalar"
+                code_snippet = scalar_fn_snippet
 
             src_code = code_snippet.format(type_name=type_name)
-            hdr_code = fn_proto_snippet.format(type_name=type_name)
+            hdr_code = fn_proto_snippet.format(type_name=type_name, extra=extra)
 
             src_file.write(src_code)
             hdr_file.write(hdr_code)
@@ -969,13 +1033,18 @@ if __name__ == "__main__":
     generate_simple_tpm2bs(cprsr, proj_root, needed_protos)
 
     # BILLS NOTES:
-    # Handle the TODOs FIST, then move onto TPMT and TPMU types.
+    # TODO: look through defines and map to algorithm generic handlers for converting things like sha256 to 0xb and vice versa.
     generate_complex_code_gen(
         cprsr, proj_root, "yaml-tpms", "TPMS_", needed_protos, needed_leafs
     )
     generate_complex_code_gen(
         cprsr, proj_root, "yaml-tpmt", "TPMT_", needed_protos, needed_leafs
     )
+
+    #generate_union_code_gen(
+    #    cprsr, proj_root, needed_protos, needed_leafs
+    #)
+
 
     # TODO TPMU
     # TODO TPML
