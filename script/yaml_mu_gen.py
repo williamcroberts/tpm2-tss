@@ -299,6 +299,14 @@ class CTypeParser(object):
             elif isinstance(node, pycparser.c_ast.Typedef):
                 if isinstance(node.type, pycparser.c_ast.TypeDecl):
                     type_name = node.name
+                    
+                    # TODO TODO LOOK THOUGH THE constants (#defines) and:
+                    # 1. if a type prefix has constants, associate it to that type
+                    # 2. if a tyepe resolves somewhere along the line to something with a prefix, stop it there.
+                    #    Example: TPMI_ALG_HASH -> TPMI_ALG_ID 
+                    
+                    if type_name == "TPMI_ALG_HASH":
+                        pass
                     # if type_name.startswith("TPM2B_"):
                     aliases = getattr(node.type.type, "names", None)
                     if aliases and type_name not in aliases:
@@ -1080,6 +1088,9 @@ if __name__ == "__main__":
     generate_complex_code_gen(
         cprsr, proj_root, "yaml-tpmt", "TPMT_", needed_protos, needed_leafs
     )
+
+    # TODO generated leaf functions for UNIONS should unpack them and call the proper
+    # underlying method based on type.
 
     # generate_union_code_gen(
     #    cprsr, proj_root, needed_protos, needed_leafs

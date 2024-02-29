@@ -302,6 +302,37 @@ test_TPMS_ALG_PROPERTY_null(void **state);
 //test_TPMS_TAGGED_PROPERTY_null(void **state);
 //
 
+void test_TPMS_ATTEST_bill(void **state) {
+    (void)state;
+
+    TPMS_ATTEST x;
+    x.clockInfo.clock = 0xbadcc0de;
+    x.clockInfo.resetCount = 42;
+    x.clockInfo.restartCount = 69;
+    x.clockInfo.safe = 0;
+
+    x.extraData.size = 2;
+    x.extraData.buffer[0] = 0xFF;
+    x.extraData.buffer[1] = 0xAA;
+
+    x.firmwareVersion = 0xDEADBEEF;
+
+    x.magic = 0xbadcafe;
+
+    x.qualifiedSigner.size = 32;
+    memset(x.qualifiedSigner.name, 0xBB, 32);
+
+    x.type = TPM2_ST_ATTEST_CREATION;
+    x.attested.creation.creationHash.size = 32;
+    memset(x.attested.creation.creationHash.buffer, 32, 32);
+    x.attested.creation.objectName.size = 34;
+    memset(x.attested.creation.objectName.name, 34, 34);
+
+    char *yaml = NULL;
+    TSS2_RC rc = Tss2_MU_YAML_TPMS_ATTEST_Marshal(&x, &yaml);
+    assert_int_equal(rc, TSS2_RC_SUCCESS);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -382,6 +413,7 @@ main(int argc, char *argv[])
             cmocka_unit_test(test_TPMS_ALG_PROPERTY_good),
             cmocka_unit_test(test_TPMS_ALG_PROPERTY_zero),
             cmocka_unit_test(test_TPMS_ALG_PROPERTY_null),
+            cmocka_unit_test(test_TPMS_ATTEST_bill),
 //            cmocka_unit_test(test_TPMS_CLOCK_INFO_good),
 //            cmocka_unit_test(test_TPMS_CLOCK_INFO_zero),
 //            cmocka_unit_test(test_TPMS_CLOCK_INFO_null),

@@ -53,7 +53,7 @@ static int yaml_add_str(yaml_document_t *doc, const char *str) {
         \
         char *x = calloc(1, MAX_CHARS); \
         return_if_null(x, "Out of memory.", TSS2_MU_RC_MEMORY); \
-        snprintf(x, MAX_CHARS, fmt, in); \
+        snprintf(x, MAX_CHARS, "%"fmt, in); \
         *out = x; \
         return TSS2_RC_SUCCESS; \
     }
