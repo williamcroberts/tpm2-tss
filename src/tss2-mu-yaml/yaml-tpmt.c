@@ -1080,9 +1080,9 @@ Tss2_MU_YAML_TPMT_PUBLIC_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("type", sizeof(src->type), &src->type, yaml_internal_uint16_t_scalar_marshal),
-        KVP_ADD_MARSHAL("nameAlg", sizeof(src->nameAlg), &src->nameAlg, yaml_internal_uint16_t_scalar_marshal),
-        KVP_ADD_MARSHAL("objectAttributes", sizeof(src->objectAttributes), &src->objectAttributes, yaml_internal_uint32_t_scalar_marshal),
+        KVP_ADD_MARSHAL("type", sizeof(src->type), &src->type, yaml_internal_TPM2_ALG_ID_scalar_marshal),
+        KVP_ADD_MARSHAL("nameAlg", sizeof(src->nameAlg), &src->nameAlg, yaml_internal_TPM2_ALG_ID_scalar_marshal),
+        KVP_ADD_MARSHAL("objectAttributes", sizeof(src->objectAttributes), &src->objectAttributes, yaml_internal_TPMA_OBJECT_scalar_marshal),
         KVP_ADD_MARSHAL("authPolicy", sizeof(src->authPolicy), &src->authPolicy, yaml_internal_TPM2B_DIGEST_marshal),
         KVP_ADD_MARSHAL("parameters", sizeof(src->parameters), &src->parameters, yaml_internal_TPMU_PUBLIC_PARMS_marshal),
         KVP_ADD_MARSHAL("unique", sizeof(src->unique), &src->unique, yaml_internal_TPMU_PUBLIC_ID_marshal)
@@ -1113,9 +1113,9 @@ Tss2_MU_YAML_TPMT_PUBLIC_Unmarshal(
     TPMT_PUBLIC tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("type", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_uint16_t_scalar_unmarshal),
-        KVP_ADD_UNMARSHAL("nameAlg", sizeof(tmp_dest.nameAlg), &tmp_dest.nameAlg, yaml_internal_uint16_t_scalar_unmarshal),
-        KVP_ADD_UNMARSHAL("objectAttributes", sizeof(tmp_dest.objectAttributes), &tmp_dest.objectAttributes, yaml_internal_uint32_t_scalar_unmarshal),
+        KVP_ADD_UNMARSHAL("type", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_TPM2_ALG_ID_scalar_unmarshal),
+        KVP_ADD_UNMARSHAL("nameAlg", sizeof(tmp_dest.nameAlg), &tmp_dest.nameAlg, yaml_internal_TPM2_ALG_ID_scalar_unmarshal),
+        KVP_ADD_UNMARSHAL("objectAttributes", sizeof(tmp_dest.objectAttributes), &tmp_dest.objectAttributes, yaml_internal_TPMA_OBJECT_scalar_unmarshal),
         KVP_ADD_UNMARSHAL("authPolicy", sizeof(tmp_dest.authPolicy), &tmp_dest.authPolicy, yaml_internal_TPM2B_DIGEST_unmarshal),
         KVP_ADD_UNMARSHAL("parameters", sizeof(tmp_dest.parameters), &tmp_dest.parameters, yaml_internal_TPMU_PUBLIC_PARMS_unmarshal),
         KVP_ADD_UNMARSHAL("unique", sizeof(tmp_dest.unique), &tmp_dest.unique, yaml_internal_TPMU_PUBLIC_ID_unmarshal)

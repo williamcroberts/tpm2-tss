@@ -17,7 +17,7 @@ from typing import Optional
 import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
 from contextlib import ExitStack
-
+from collections import OrderedDict
 
 class _CMagic(object):
     def __eq__(self, other):
@@ -171,13 +171,15 @@ class CScalar(CType):
     def signed(self):
         return self._signed
 
+    def get_base_type(self):
+        return f'{"u" if self.signed else ""}int{self._size * 8}_t'
+
     def morph(self, new_name: str, constants: list["CDefine"] = None) -> CType:
         deepcopy = copy.deepcopy(self)
         deepcopy._name = new_name
         if constants:
             deepcopy._constants = constants
         return deepcopy
-
 
 class CDefine(CType):
     def __init__(self, name: str, value: int):
@@ -906,6 +908,29 @@ def generate_complex_code_gen(
             f.write(fmt)
 
 
+def get_friendly_constants(scalar: CScalar) -> dict[str, int]:
+
+    # process these per the JSON spec 2.1.3
+    friendly = {}
+    for c in scalar.constants:
+        # full length is always OK
+        friendly[c.name.lower()] = c.name
+        
+        # striping the max type prefix            
+        prefix = os.path.commonprefix((c.name, scalar.name))
+        short_hand = c.name[len(prefix):].lower()
+        if short_hand.startswith("_"):
+            short_hand = short_hand[1:]
+        friendly[short_hand] = c.name
+
+    return friendly
+
+def get_comparison_operator(number: int) -> str:
+    """ If it is a power of 2 return & else =="""
+    
+    return "&" if number > 0 and (number &(number -1)) == 0 else "=="
+
+
 def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
     spdx = "/* SPDX-License-Identifier: BSD-2-Clause */"
 
@@ -956,6 +981,106 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
         hdr_file.write(hdr_prologue)
         src_file.write(src_prolog)
+
+        # TODO, this code should be seperated for bitwise vs immediates, it should work, but it's odd.
+        scalar_with_consts_fn_snippet = textwrap.dedent(
+            """
+        TSS2_RC yaml_internal_{type_name}_scalar_marshal(const datum *in, char **out) {{
+            assert(in);
+            assert(out);
+            assert(sizeof({type_name}) == in->size);
+        
+            const {type_name} *d = (const {type_name} *)in->data;
+            {type_name} tmp = *d;
+        
+            static struct {{
+                {type_name} key;
+                const char *value;
+            }} lookup[] = {{
+            {val_to_str}
+            }};
+        
+            // TODO more intelligence on size selection?
+            char buf[1024] = {{ 0 }};
+            char *p = buf;
+            while(tmp) {{
+                unsigned i;
+                for (i=0; i < ARRAY_LEN(lookup); i++) {{
+                    if (tmp {comparison} lookup[i].key) {{
+                        /* turns down the bit OR sets to 0 to break the loop */
+                        tmp &= ~lookup[i].key;
+                        strncat(p, lookup[i].value, sizeof(buf) - 1);
+                        break;
+                    }}
+                }}
+                if (i >= ARRAY_LEN(lookup)) {{
+                    return yaml_common_scalar_{base_scalar_type}_marshal(*d, out);
+                }}
+            }}
+        
+            if (buf[0] == ',') {{
+                p++;
+            }}
+        
+            char *s = strdup(p);
+            if (!s) {{
+                return TSS2_MU_RC_MEMORY;
+            }}
+        
+            *out = s;
+            return TSS2_RC_SUCCESS;
+        }}
+
+        TSS2_RC yaml_internal_{type_name}_scalar_unmarshal(const char *in, size_t len, datum *out) {{
+        
+            assert(in);
+            assert(out);
+            assert(out->size == sizeof({type_name}));
+        
+            // TODO can we plumb this right?
+            UNUSED(len);
+        
+            char *s = strdup(in);
+            if (!s) {{
+                return TSS2_MU_RC_MEMORY;
+            }}
+        
+            char *saveptr = NULL;
+            char *token = NULL;
+        
+            {type_name} tmp = 0;
+            {type_name} *result = out->data;
+        
+            yaml_common_to_lower(s);
+        
+            static const struct {{
+                const char *key;
+                {type_name} value;
+            }} lookup[] = {{
+            {str_to_val}
+            }};
+        
+            char *x = s;
+            while ((token = strtok_r(x, ",", &saveptr))) {{
+                x = NULL;
+                size_t i;
+                for(i=0; i < ARRAY_LEN(lookup); i++) {{
+                    if (!strcmp(token, lookup[i].key)) {{
+                        tmp |= lookup[i].value;
+                    }}
+                }}
+                if (i >= ARRAY_LEN(lookup)) {{
+                    free(s);
+                    return yaml_common_scalar_{base_scalar_type}_unmarshal(in, len, result);
+                }}
+            }}
+        
+            *result = tmp;
+            free(s);
+            return TSS2_RC_SUCCESS;
+        }}
+        """
+        )
 
         scalar_fn_snippet = textwrap.dedent(
             """
@@ -1039,17 +1164,52 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
 
             type_name = t.name
 
-            extra = ""
+            extra_src_vars = {}
+            extra_hdr_vars = {"extra" : ""}
             if isinstance(t, CComplex):
                 code_snippet = complex_fn_snippet
             elif isinstance(t, CArray):
                 code_snippet = array_fn_snippet
-            else:
-                extra = "_scalar"
+            elif isinstance(t, CScalar):
+                extra_hdr_vars = {
+                    "extra" : "_scalar"
+                }
                 code_snippet = scalar_fn_snippet
+                if t.constants:
+                    # Generate all possible string to values
+                    str_to_val_lst = []
+                    friendly = get_friendly_constants(t)
+                    for k, v in friendly.items():
+                        str_to_val_lst.append(f'    {{"{k}", {v}}}')
+                    
+                    # Generate all values to normal form
+                    val_to_str_lst = []
+                    # Python < 3.7 doesn't gaurentee dict ordering, sort by shortest key to longest
+                    sorted_friendly = OrderedDict(sorted(friendly.items(), key=lambda x: len(x[0])))
+                    # shortest keys are the Normal form and should be 1 to 1 with constants
+                    sliced_fiendly = OrderedDict(list(sorted_friendly.items())[:len(t.constants)])
+                    for k,v in sliced_fiendly.items():
+                        val_to_str_lst.append(f'    {{{v}, "{k}"}}')
+                
+                    # figure out which comparison operator we need any constant to check
+                    v = t.constants[0].value
+                    comparison = get_comparison_operator(v)
+                
+                    # Convert both lists to C code as strings for fmt()
+                    str_to_val = ',\n'.join(str_to_val_lst)
+                    val_to_str = ',\n'.join(val_to_str_lst)
+                    extra_src_vars = {
+                        "str_to_val" : str_to_val,
+                        "val_to_str" : val_to_str,
+                        "comparison" : comparison,
+                        "base_scalar_type" : t.get_base_type(),
+                    }
+                    code_snippet = scalar_with_consts_fn_snippet
+                else:
+                    code_snippet = scalar_fn_snippet
 
-            src_code = code_snippet.format(type_name=type_name)
-            hdr_code = fn_proto_snippet.format(type_name=type_name, extra=extra)
+            src_code = code_snippet.format(type_name=type_name, **extra_src_vars)
+            hdr_code = fn_proto_snippet.format(type_name=type_name, **extra_hdr_vars)
 
             src_file.write(src_code)
             hdr_file.write(hdr_code)

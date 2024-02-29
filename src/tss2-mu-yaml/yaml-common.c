@@ -667,142 +667,15 @@ TSS2_RC yaml_common_generic_scalar_marshal(uint64_t data, char **result) {
     return TSS2_RC_SUCCESS;
 }
 
-TSS2_RC TPM2_ALG_ID_generic_marshal(const datum *in, char **out) {
-    assert(in);
-    assert(out);
-    assert(sizeof(TPM2_ALG_ID) == in->size);
-
-    const TPM2_ALG_ID *id = (const TPM2_ALG_ID *)in->data;
-
-    size_t i;
-    for (i=0; i < ARRAY_LEN(alg_table); i++) {
-        if (alg_table[i].id == *id) {
-            char *s = strdup(alg_table[i].value);
-            if (!s) {
-                return TSS2_MU_RC_MEMORY;
-            }
-            *out = s;
-            return TSS2_RC_SUCCESS;
-        }
+void yaml_common_to_lower(char *s)
+{
+    while(*s) {
+        *s = tolower(*s);
+        s++;
     }
-
-    return yaml_common_scalar_uint8_t_marshal(*id, out);
 }
 
-TSS2_RC TPM2_ALG_ID_generic_unmarshal(const char *alg, size_t len, datum *value) {
-    assert(alg);
-    assert(value);
-    assert(value->size == sizeof(TPM2_ALG_ID));
-
-    // TODO can we plumb this right?
-    UNUSED(len);
-
-    TPM2_ALG_ID *result = (TPM2_ALG_ID *)value->data;
-
-    size_t i;
-    for (i=0; i < ARRAY_LEN(alg_table); i++) {
-        if (!strcmp(alg_table[i].value, alg)) {
-            *result = alg_table[i].id;
-            return TSS2_RC_SUCCESS;
-        }
-    }
-
-    return yaml_common_scalar_uint16_t_unmarshal(alg, len, result);
-}
-
-TSS2_RC TPMA_ALGORITHM_generic_marshal(const datum *in, char **out) {
-    assert(in);
-    assert(out);
-    assert(sizeof(TPMA_ALGORITHM) == in->size);
-
-    const TPMA_ALGORITHM *d = (const TPMA_ALGORITHM *)in->data;
-    TPMA_ALGORITHM details = *d;
-
-    char buf[256] = { 0 };
-    char *p = buf;
-    while(details) {
-        if (details & TPMA_ALGORITHM_ASYMMETRIC) {
-            details &= ~TPMA_ALGORITHM_ASYMMETRIC;
-            strcat(p, "symmetric");
-        } else  if (details & TPMA_ALGORITHM_SYMMETRIC) {
-            details &= ~TPMA_ALGORITHM_SYMMETRIC;
-            strcat(p, ",symmetric");
-        } else if (details & TPMA_ALGORITHM_HASH) {
-            details &= ~TPMA_ALGORITHM_HASH;
-            strcat(p, ",hash");
-        } else if (details & TPMA_ALGORITHM_OBJECT) {
-            details &= ~TPMA_ALGORITHM_OBJECT;
-            strcat(p, ",object");
-        } else if (details & TPMA_ALGORITHM_SIGNING) {
-            details &= ~TPMA_ALGORITHM_SIGNING;
-            strcat(p, ",signing");
-        } else if (details & TPMA_ALGORITHM_ENCRYPTING) {
-            details &= ~TPMA_ALGORITHM_ENCRYPTING;
-            strcat(p, ",encrypting");
-        } else if (details & TPMA_ALGORITHM_METHOD) {
-            details &= ~TPMA_ALGORITHM_METHOD;
-            strcat(p, ",method");
-        } else {
-            return yaml_common_scalar_uint8_t_marshal(*d, out);
-        }
-    }
-
-    if (buf[0] == ',') {
-        p++;
-    }
-
-    char *s = strdup(p);
-    if (!s) {
-        return TSS2_MU_RC_MEMORY;
-    }
-
-    *out = s;
-    return TSS2_RC_SUCCESS;
-}
-
-TSS2_RC TPMA_ALGORITHM_generic_unmarshal(const char *in, size_t len, datum *out) {
-
-    assert(in);
-    assert(out);
-    assert(out->size == sizeof(TPMA_ALGORITHM));
-
-    // TODO can we plumb this right?
-    UNUSED(len);
-
-    char *s = strdup(in);
-    if (!s) {
-        return TSS2_MU_RC_MEMORY;
-    }
-
-    char *saveptr = NULL;
-    char *token = NULL;
-
-    TPMA_ALGORITHM *result = out->data;
-
-    while ((token = strtok_r(s, ",", &saveptr))) {
-        s = NULL;
-
-        if (!strcmp(token, "asymmetric")) {
-            *result |= TPMA_ALGORITHM_ASYMMETRIC;
-        } else if (!strcmp(token, "symmetric")) {
-            *result |= TPMA_ALGORITHM_SYMMETRIC;
-        } else if (!strcmp(token, "hash")) {
-            *result |= TPMA_ALGORITHM_HASH;
-        } else if (!strcmp(token, "object")) {
-            *result |= TPMA_ALGORITHM_OBJECT;
-        } else if (!strcmp(token, "signing")) {
-            *result |= TPMA_ALGORITHM_SIGNING;
-        } else if (!strcmp(token, "encrypting")) {
-            *result |= TPMA_ALGORITHM_ENCRYPTING;
-        } else if (!strcmp(token, "method")) {
-            *result |= TPMA_ALGORITHM_METHOD;
-        } else {
-            return yaml_common_scalar_uint32_t_unmarshal(in, len, result);
-        }
-    }
-
-    return TSS2_RC_SUCCESS;
-}
+/* TODO REMOVE HACKY McHACKERSON CODE */
 TSS2_RC Tss2_MU_YAML_TPML_PCR_SELECTION_Marshal(TPML_PCR_SELECTION const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
 TSS2_RC Tss2_MU_YAML_TPML_PCR_SELECTION_Unmarshal(const char *yaml, size_t yaml_len, TPML_PCR_SELECTION *dest) { (void)yaml; (void)yaml_len; (void)dest; return TSS2_RC_SUCCESS; }
 TSS2_RC Tss2_MU_YAML_TPMT_ASYM_SCHEME_Marshal(TPMT_ASYM_SCHEME const *src, char **yaml) { (void)src; (void)yaml; return TSS2_RC_SUCCESS; }
