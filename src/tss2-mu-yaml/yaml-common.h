@@ -27,8 +27,10 @@ struct datum {
 };
 
 struct key_value {
+    bool is_union;
     const char *key;
     datum value;
+    datum union_extra;
 };
 
 typedef struct write_data write_data;
@@ -53,8 +55,11 @@ struct parser_state {
 #define FIELD_TYPE(type, field) typeof(((type *)NULL)->field)
 
 /* Adding key values to the list for emitting (generating YAML) */
-#define KVP_ADD_MARSHAL(k, s, v, m)    {.key = k, .value = { .data = (void *)v, .size = s, .marshal = m }}
-#define KVP_ADD_UNMARSHAL(k, s, v, u)  {.key = k, .value = { .data = (void *)v, .size = s, .unmarshal = u }}
+#define KVP_ADD_MARSHAL(k, s, v, m)    {.is_union = false, .key = k, .value = { .data = (void *)v, .size = s, .marshal = m }, .union_extra = { 0 }}
+#define KVP_ADD_UNMARSHAL(k, s, v, u)  {.is_union = false, .key = k, .value = { .data = (void *)v, .size = s, .unmarshal = u }, .union_extra = { 0 }}
+
+#define KVPU_ADD_MARSHAL(k, us, uv, um, s, v, m)  {.is_union = true, .key = k, .union_extra = { .data = (void *)uv, .size = us, .marshal = um }, .value = { .data = (void *)v, .size = s, .masrhal = m }}
+#define KVPU_ADD_UNMARSHAL(k, us, uv, uu, s, v, u)  {.is_union = true, .key = k, .union_extra = { .data = (void *)uv, .size = us, .marshal = uu }, .value = { .data = (void *)v, .size = s, .unmarshal = u }}
 
 #define return_yaml_rc(rc) do { if (!rc) { return yaml_to_tss2_rc(rc); } } while (0)
 

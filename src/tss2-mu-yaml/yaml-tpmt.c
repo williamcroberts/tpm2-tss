@@ -28,8 +28,7 @@ Tss2_MU_YAML_TPMT_HA_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("hashAlg", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("digest", sizeof(src->digest), &src->digest, yaml_internal_TPMU_HA_marshal)
+        KVPU_ADD_MARSHAL("digest", sizeof(src->hashAlg), &src->hashAlg, yaml_internal_TPMU_HA_scalar_marshal, sizeof(src->digest), &src->digest, yaml_internal_TPMU_HA_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -57,8 +56,7 @@ Tss2_MU_YAML_TPMT_HA_Unmarshal(
     TPMT_HA tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("hashAlg", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("digest", sizeof(tmp_dest.digest), &tmp_dest.digest, yaml_internal_TPMU_HA_unmarshal)
+        KVPU_ADD_UNMARSHAL("digest", sizeof(tmp_dest.hashAlg), &tmp_dest.hashAlg, yaml_internal_TPMU_HA_scalar_unmarshal, sizeof(tmp_dest.digest), &tmp_dest.digest, yaml_internal_TPMU_HA_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -361,9 +359,8 @@ Tss2_MU_YAML_TPMT_SYM_DEF_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("algorithm", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("keyBits", sizeof(src->keyBits), &src->keyBits, yaml_internal_TPMU_SYM_KEY_BITS_marshal),
-        KVP_ADD_MARSHAL("mode", sizeof(src->mode), &src->mode, yaml_internal_TPMU_SYM_MODE_marshal)
+        KVPU_ADD_MARSHAL("keyBits", sizeof(src->algorithm), &src->algorithm, yaml_internal_TPMU_SYM_KEY_BITS_scalar_marshal, sizeof(src->keyBits), &src->keyBits, yaml_internal_TPMU_SYM_KEY_BITS_marshal),
+        KVPU_ADD_MARSHAL("mode", sizeof(src->algorithm), &src->algorithm, yaml_internal_TPMU_SYM_MODE_scalar_marshal, sizeof(src->mode), &src->mode, yaml_internal_TPMU_SYM_MODE_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -391,9 +388,8 @@ Tss2_MU_YAML_TPMT_SYM_DEF_Unmarshal(
     TPMT_SYM_DEF tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("algorithm", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("keyBits", sizeof(tmp_dest.keyBits), &tmp_dest.keyBits, yaml_internal_TPMU_SYM_KEY_BITS_unmarshal),
-        KVP_ADD_UNMARSHAL("mode", sizeof(tmp_dest.mode), &tmp_dest.mode, yaml_internal_TPMU_SYM_MODE_unmarshal)
+        KVPU_ADD_UNMARSHAL("keyBits", sizeof(tmp_dest.algorithm), &tmp_dest.algorithm, yaml_internal_TPMU_SYM_KEY_BITS_scalar_unmarshal, sizeof(tmp_dest.keyBits), &tmp_dest.keyBits, yaml_internal_TPMU_SYM_KEY_BITS_unmarshal),
+        KVPU_ADD_UNMARSHAL("mode", sizeof(tmp_dest.algorithm), &tmp_dest.algorithm, yaml_internal_TPMU_SYM_MODE_scalar_unmarshal, sizeof(tmp_dest.mode), &tmp_dest.mode, yaml_internal_TPMU_SYM_MODE_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -428,9 +424,8 @@ Tss2_MU_YAML_TPMT_SYM_DEF_OBJECT_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("algorithm", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("keyBits", sizeof(src->keyBits), &src->keyBits, yaml_internal_TPMU_SYM_KEY_BITS_marshal),
-        KVP_ADD_MARSHAL("mode", sizeof(src->mode), &src->mode, yaml_internal_TPMU_SYM_MODE_marshal)
+        KVPU_ADD_MARSHAL("keyBits", sizeof(src->algorithm), &src->algorithm, yaml_internal_TPMU_SYM_KEY_BITS_scalar_marshal, sizeof(src->keyBits), &src->keyBits, yaml_internal_TPMU_SYM_KEY_BITS_marshal),
+        KVPU_ADD_MARSHAL("mode", sizeof(src->algorithm), &src->algorithm, yaml_internal_TPMU_SYM_MODE_scalar_marshal, sizeof(src->mode), &src->mode, yaml_internal_TPMU_SYM_MODE_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -458,9 +453,8 @@ Tss2_MU_YAML_TPMT_SYM_DEF_OBJECT_Unmarshal(
     TPMT_SYM_DEF_OBJECT tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("algorithm", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("keyBits", sizeof(tmp_dest.keyBits), &tmp_dest.keyBits, yaml_internal_TPMU_SYM_KEY_BITS_unmarshal),
-        KVP_ADD_UNMARSHAL("mode", sizeof(tmp_dest.mode), &tmp_dest.mode, yaml_internal_TPMU_SYM_MODE_unmarshal)
+        KVPU_ADD_UNMARSHAL("keyBits", sizeof(tmp_dest.algorithm), &tmp_dest.algorithm, yaml_internal_TPMU_SYM_KEY_BITS_scalar_unmarshal, sizeof(tmp_dest.keyBits), &tmp_dest.keyBits, yaml_internal_TPMU_SYM_KEY_BITS_unmarshal),
+        KVPU_ADD_UNMARSHAL("mode", sizeof(tmp_dest.algorithm), &tmp_dest.algorithm, yaml_internal_TPMU_SYM_MODE_scalar_unmarshal, sizeof(tmp_dest.mode), &tmp_dest.mode, yaml_internal_TPMU_SYM_MODE_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -495,8 +489,7 @@ Tss2_MU_YAML_TPMT_KEYEDHASH_SCHEME_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_SCHEME_KEYEDHASH_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_SCHEME_KEYEDHASH_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_SCHEME_KEYEDHASH_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -524,8 +517,7 @@ Tss2_MU_YAML_TPMT_KEYEDHASH_SCHEME_Unmarshal(
     TPMT_KEYEDHASH_SCHEME tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_SCHEME_KEYEDHASH_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_SCHEME_KEYEDHASH_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_SCHEME_KEYEDHASH_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -560,8 +552,7 @@ Tss2_MU_YAML_TPMT_SIG_SCHEME_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_SIG_SCHEME_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_SIG_SCHEME_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_SIG_SCHEME_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -589,8 +580,7 @@ Tss2_MU_YAML_TPMT_SIG_SCHEME_Unmarshal(
     TPMT_SIG_SCHEME tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_SIG_SCHEME_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_SIG_SCHEME_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_SIG_SCHEME_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -625,8 +615,7 @@ Tss2_MU_YAML_TPMT_KDF_SCHEME_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_KDF_SCHEME_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_KDF_SCHEME_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_KDF_SCHEME_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -654,8 +643,7 @@ Tss2_MU_YAML_TPMT_KDF_SCHEME_Unmarshal(
     TPMT_KDF_SCHEME tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_KDF_SCHEME_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_KDF_SCHEME_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_KDF_SCHEME_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -690,8 +678,7 @@ Tss2_MU_YAML_TPMT_ASYM_SCHEME_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -719,8 +706,7 @@ Tss2_MU_YAML_TPMT_ASYM_SCHEME_Unmarshal(
     TPMT_ASYM_SCHEME tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -755,8 +741,7 @@ Tss2_MU_YAML_TPMT_RSA_SCHEME_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -784,8 +769,7 @@ Tss2_MU_YAML_TPMT_RSA_SCHEME_Unmarshal(
     TPMT_RSA_SCHEME tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -820,8 +804,7 @@ Tss2_MU_YAML_TPMT_RSA_DECRYPT_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -849,8 +832,7 @@ Tss2_MU_YAML_TPMT_RSA_DECRYPT_Unmarshal(
     TPMT_RSA_DECRYPT tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -885,8 +867,7 @@ Tss2_MU_YAML_TPMT_ECC_SCHEME_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("details", sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
+        KVPU_ADD_MARSHAL("details", sizeof(src->scheme), &src->scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_marshal, sizeof(src->details), &src->details, yaml_internal_TPMU_ASYM_SCHEME_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -914,8 +895,7 @@ Tss2_MU_YAML_TPMT_ECC_SCHEME_Unmarshal(
     TPMT_ECC_SCHEME tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("scheme", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("details", sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
+        KVPU_ADD_UNMARSHAL("details", sizeof(tmp_dest.scheme), &tmp_dest.scheme, yaml_internal_TPMU_ASYM_SCHEME_scalar_unmarshal, sizeof(tmp_dest.details), &tmp_dest.details, yaml_internal_TPMU_ASYM_SCHEME_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -950,8 +930,7 @@ Tss2_MU_YAML_TPMT_SIGNATURE_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("sigAlg", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("signature", sizeof(src->signature), &src->signature, yaml_internal_TPMU_SIGNATURE_marshal)
+        KVPU_ADD_MARSHAL("signature", sizeof(src->sigAlg), &src->sigAlg, yaml_internal_TPMU_SIGNATURE_scalar_marshal, sizeof(src->signature), &src->signature, yaml_internal_TPMU_SIGNATURE_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -979,8 +958,7 @@ Tss2_MU_YAML_TPMT_SIGNATURE_Unmarshal(
     TPMT_SIGNATURE tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("sigAlg", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("signature", sizeof(tmp_dest.signature), &tmp_dest.signature, yaml_internal_TPMU_SIGNATURE_unmarshal)
+        KVPU_ADD_UNMARSHAL("signature", sizeof(tmp_dest.sigAlg), &tmp_dest.sigAlg, yaml_internal_TPMU_SIGNATURE_scalar_unmarshal, sizeof(tmp_dest.signature), &tmp_dest.signature, yaml_internal_TPMU_SIGNATURE_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -1015,8 +993,7 @@ Tss2_MU_YAML_TPMT_PUBLIC_PARMS_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("type", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("parameters", sizeof(src->parameters), &src->parameters, yaml_internal_TPMU_PUBLIC_PARMS_marshal)
+        KVPU_ADD_MARSHAL("parameters", sizeof(src->type), &src->type, yaml_internal_TPMU_PUBLIC_PARMS_scalar_marshal, sizeof(src->parameters), &src->parameters, yaml_internal_TPMU_PUBLIC_PARMS_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -1044,8 +1021,7 @@ Tss2_MU_YAML_TPMT_PUBLIC_PARMS_Unmarshal(
     TPMT_PUBLIC_PARMS tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("type", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("parameters", sizeof(tmp_dest.parameters), &tmp_dest.parameters, yaml_internal_TPMU_PUBLIC_PARMS_unmarshal)
+        KVPU_ADD_UNMARSHAL("parameters", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_TPMU_PUBLIC_PARMS_scalar_unmarshal, sizeof(tmp_dest.parameters), &tmp_dest.parameters, yaml_internal_TPMU_PUBLIC_PARMS_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -1080,12 +1056,11 @@ Tss2_MU_YAML_TPMT_PUBLIC_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("type", sizeof(src->type), &src->type, yaml_internal_TPM2_ALG_ID_scalar_marshal),
         KVP_ADD_MARSHAL("nameAlg", sizeof(src->nameAlg), &src->nameAlg, yaml_internal_TPM2_ALG_ID_scalar_marshal),
         KVP_ADD_MARSHAL("objectAttributes", sizeof(src->objectAttributes), &src->objectAttributes, yaml_internal_TPMA_OBJECT_scalar_marshal),
         KVP_ADD_MARSHAL("authPolicy", sizeof(src->authPolicy), &src->authPolicy, yaml_internal_TPM2B_DIGEST_marshal),
-        KVP_ADD_MARSHAL("parameters", sizeof(src->parameters), &src->parameters, yaml_internal_TPMU_PUBLIC_PARMS_marshal),
-        KVP_ADD_MARSHAL("unique", sizeof(src->unique), &src->unique, yaml_internal_TPMU_PUBLIC_ID_marshal)
+        KVPU_ADD_MARSHAL("parameters", sizeof(src->type), &src->type, yaml_internal_TPMU_PUBLIC_PARMS_scalar_marshal, sizeof(src->parameters), &src->parameters, yaml_internal_TPMU_PUBLIC_PARMS_marshal),
+        KVPU_ADD_MARSHAL("unique", sizeof(src->type), &src->type, yaml_internal_TPMU_PUBLIC_ID_scalar_marshal, sizeof(src->unique), &src->unique, yaml_internal_TPMU_PUBLIC_ID_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -1113,12 +1088,11 @@ Tss2_MU_YAML_TPMT_PUBLIC_Unmarshal(
     TPMT_PUBLIC tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("type", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_TPM2_ALG_ID_scalar_unmarshal),
         KVP_ADD_UNMARSHAL("nameAlg", sizeof(tmp_dest.nameAlg), &tmp_dest.nameAlg, yaml_internal_TPM2_ALG_ID_scalar_unmarshal),
         KVP_ADD_UNMARSHAL("objectAttributes", sizeof(tmp_dest.objectAttributes), &tmp_dest.objectAttributes, yaml_internal_TPMA_OBJECT_scalar_unmarshal),
         KVP_ADD_UNMARSHAL("authPolicy", sizeof(tmp_dest.authPolicy), &tmp_dest.authPolicy, yaml_internal_TPM2B_DIGEST_unmarshal),
-        KVP_ADD_UNMARSHAL("parameters", sizeof(tmp_dest.parameters), &tmp_dest.parameters, yaml_internal_TPMU_PUBLIC_PARMS_unmarshal),
-        KVP_ADD_UNMARSHAL("unique", sizeof(tmp_dest.unique), &tmp_dest.unique, yaml_internal_TPMU_PUBLIC_ID_unmarshal)
+        KVPU_ADD_UNMARSHAL("parameters", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_TPMU_PUBLIC_PARMS_scalar_unmarshal, sizeof(tmp_dest.parameters), &tmp_dest.parameters, yaml_internal_TPMU_PUBLIC_PARMS_unmarshal),
+        KVPU_ADD_UNMARSHAL("unique", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_TPMU_PUBLIC_ID_scalar_unmarshal, sizeof(tmp_dest.unique), &tmp_dest.unique, yaml_internal_TPMU_PUBLIC_ID_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -1153,10 +1127,9 @@ Tss2_MU_YAML_TPMT_SENSITIVE_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("sensitiveType", 0, NULL, NULL),
         KVP_ADD_MARSHAL("authValue", sizeof(src->authValue), &src->authValue, yaml_internal_TPM2B_AUTH_marshal),
         KVP_ADD_MARSHAL("seedValue", sizeof(src->seedValue), &src->seedValue, yaml_internal_TPM2B_DIGEST_marshal),
-        KVP_ADD_MARSHAL("sensitive", sizeof(src->sensitive), &src->sensitive, yaml_internal_TPMU_SENSITIVE_COMPOSITE_marshal)
+        KVPU_ADD_MARSHAL("sensitive", sizeof(src->sensitiveType), &src->sensitiveType, yaml_internal_TPMU_SENSITIVE_COMPOSITE_scalar_marshal, sizeof(src->sensitive), &src->sensitive, yaml_internal_TPMU_SENSITIVE_COMPOSITE_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -1184,10 +1157,9 @@ Tss2_MU_YAML_TPMT_SENSITIVE_Unmarshal(
     TPMT_SENSITIVE tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("sensitiveType", 0, NULL, NULL),
         KVP_ADD_UNMARSHAL("authValue", sizeof(tmp_dest.authValue), &tmp_dest.authValue, yaml_internal_TPM2B_AUTH_unmarshal),
         KVP_ADD_UNMARSHAL("seedValue", sizeof(tmp_dest.seedValue), &tmp_dest.seedValue, yaml_internal_TPM2B_DIGEST_unmarshal),
-        KVP_ADD_UNMARSHAL("sensitive", sizeof(tmp_dest.sensitive), &tmp_dest.sensitive, yaml_internal_TPMU_SENSITIVE_COMPOSITE_unmarshal)
+        KVPU_ADD_UNMARSHAL("sensitive", sizeof(tmp_dest.sensitiveType), &tmp_dest.sensitiveType, yaml_internal_TPMU_SENSITIVE_COMPOSITE_scalar_unmarshal, sizeof(tmp_dest.sensitive), &tmp_dest.sensitive, yaml_internal_TPMU_SENSITIVE_COMPOSITE_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));

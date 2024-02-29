@@ -737,6 +737,25 @@ def type_to_root(scalar_map: dict, scalar: CScalar) -> CScalar:
         resolved = scalar
     return resolved
 
+def find_union_selector(parent_field_map: {str, CType}):
+        
+        possible_selectors = [
+            key
+            for key, value in parent_field_map.items()
+            if isinstance(value, CScalar)
+        ]
+        
+        if len(possible_selectors) != 1:
+            if "type" in possible_selectors:
+                possible_selectors = [ "type" ]
+            else:
+                raise RuntimeError(
+                    f"Unexpected, Cannot handle {len(possible_selectors)} union selectors"
+                )
+
+        found_selector = possible_selectors[0]
+        return found_selector
+
 
 def generate_complex_code_gen(
     cprsr: CTypeParser,
@@ -835,34 +854,26 @@ def generate_complex_code_gen(
             if not name.startswith(prefix):
                 continue
 
+            if name == "TPMS_ATTEST":
+                pass
+
             needed_protos.append(name)
 
             emitters = []
             parsers = []
 
             field_map = type_.fields
-            # if it contains a TPMU subfield, we DROP the selector, so figure it out
-            found_selector = None
-            has_union_field = any(isinstance(x, CUnion) for x in field_map.values())
-            if has_union_field:
-                possible_selectors = [
-                    key
-                    for key, value in field_map.items()
-                    if isinstance(value, CScalar)
-                ]
-                if len(possible_selectors) != 1:
-                    if "type" in possible_selectors:
-                        possible_selectors = "type"
-                    else:
-                        raise RuntimeError(
-                            f"Unexpected, Cannot handle {len(possible_selectors)} union selectors"
-                        )
-                elif len(possible_selectors) == 1:
-                    found_selector = possible_selectors[0]
+
+            # AFAICT a type containing TPMU's will only have one selector
+            found_unions = [ x for x in field_map.values() if isinstance(x, CUnion) ]
+            union_selector = find_union_selector(field_map) if found_unions else None
 
             for field_name, field_type in field_map.items():
-                # TODO we don't want to call the default scalar handler if we have
-                # scalar names, ie TPM2_ALG_ID for sha256...
+                
+                # We never directly consume or output the union selector
+                if field_name == union_selector:
+                    continue
+                
                 if isinstance(field_type, CScalar):
                     resolved_type = type_to_root(
                         scalar_type_map, scalar_type_map[field_type.name]
@@ -883,19 +894,21 @@ def generate_complex_code_gen(
                 else:
                     fn_name = f"yaml_internal_{resolved_type.name}"
 
-                if has_union_field and found_selector == field_name:
+                if isinstance(resolved_type, CUnion):
+                    
                     emitters.append(
-                        f'    KVP_ADD_MARSHAL("{field_name}", 0, NULL, NULL)'
+                        f'    KVPU_ADD_MARSHAL("{field_name}", sizeof(src->{union_selector}), &src->{union_selector}, yaml_internal_{resolved_type.name}_scalar_marshal, sizeof(src->{field_name}), &src->{field_name}, yaml_internal_{resolved_type.name}_marshal)'
                     )
-
+    
                     parsers.append(
-                        f'    KVP_ADD_UNMARSHAL("{field_name}", 0, NULL, NULL)'
+                        f'    KVPU_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{union_selector}), &tmp_dest.{union_selector}, yaml_internal_{resolved_type.name}_scalar_unmarshal, sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {fn_name}_unmarshal)'
                     )
+                
                 else:
                     emitters.append(
                         f'    KVP_ADD_MARSHAL("{field_name}", sizeof(src->{field_name}), &src->{field_name}, {fn_name}_marshal)'
                     )
-
+    
                     parsers.append(
                         f'    KVP_ADD_UNMARSHAL("{field_name}", sizeof(tmp_dest.{field_name}), &tmp_dest.{field_name}, {fn_name}_unmarshal)'
                     )
@@ -1298,9 +1311,6 @@ if __name__ == "__main__":
         cprsr, proj_root, "yaml-tpmt", "TPMT_", needed_protos, needed_leafs
     )
 
-    # TODO generated leaf functions for UNIONS should unpack them and call the proper
-    # underlying method based on type.
-
     # generate_union_code_gen(
     #    cprsr, proj_root, needed_protos, needed_leafs
     # )
@@ -1308,6 +1318,8 @@ if __name__ == "__main__":
     # TODO TPMU
     # TODO TPML
 
+    # BILL PICK UP HERE
+    # TODO TPMU leafs should be "internal" and generated, this will also fix my TPMU TODO. 
     generate_leafs(cprsr, proj_root, needed_leafs)
 
     generate_protos(proj_root, needed_protos)

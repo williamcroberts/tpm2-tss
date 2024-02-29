@@ -552,8 +552,7 @@ Tss2_MU_YAML_TPMS_CAPABILITY_DATA_Marshal(
     }
 
     struct key_value kvs[] = {
-        KVP_ADD_MARSHAL("capability", 0, NULL, NULL),
-        KVP_ADD_MARSHAL("data", sizeof(src->data), &src->data, yaml_internal_TPMU_CAPABILITIES_marshal)
+        KVPU_ADD_MARSHAL("data", sizeof(src->capability), &src->capability, yaml_internal_TPMU_CAPABILITIES_scalar_marshal, sizeof(src->data), &src->data, yaml_internal_TPMU_CAPABILITIES_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -581,8 +580,7 @@ Tss2_MU_YAML_TPMS_CAPABILITY_DATA_Unmarshal(
     TPMS_CAPABILITY_DATA tmp_dest = { 0 };
 
     key_value parsed_data[] = {
-        KVP_ADD_UNMARSHAL("capability", 0, NULL, NULL),
-        KVP_ADD_UNMARSHAL("data", sizeof(tmp_dest.data), &tmp_dest.data, yaml_internal_TPMU_CAPABILITIES_unmarshal)
+        KVPU_ADD_UNMARSHAL("data", sizeof(tmp_dest.capability), &tmp_dest.capability, yaml_internal_TPMU_CAPABILITIES_scalar_unmarshal, sizeof(tmp_dest.data), &tmp_dest.data, yaml_internal_TPMU_CAPABILITIES_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
@@ -1278,12 +1276,11 @@ Tss2_MU_YAML_TPMS_ATTEST_Marshal(
 
     struct key_value kvs[] = {
         KVP_ADD_MARSHAL("magic", sizeof(src->magic), &src->magic, yaml_internal_TPM2_GENERATED_scalar_marshal),
-        KVP_ADD_MARSHAL("type", sizeof(src->type), &src->type, yaml_internal_uint16_t_scalar_marshal),
         KVP_ADD_MARSHAL("qualifiedSigner", sizeof(src->qualifiedSigner), &src->qualifiedSigner, yaml_internal_TPM2B_NAME_marshal),
         KVP_ADD_MARSHAL("extraData", sizeof(src->extraData), &src->extraData, yaml_internal_TPM2B_DATA_marshal),
         KVP_ADD_MARSHAL("clockInfo", sizeof(src->clockInfo), &src->clockInfo, yaml_internal_TPMS_CLOCK_INFO_marshal),
         KVP_ADD_MARSHAL("firmwareVersion", sizeof(src->firmwareVersion), &src->firmwareVersion, yaml_internal_uint64_t_scalar_marshal),
-        KVP_ADD_MARSHAL("attested", sizeof(src->attested), &src->attested, yaml_internal_TPMU_ATTEST_marshal)
+        KVPU_ADD_MARSHAL("attested", sizeof(src->type), &src->type, yaml_internal_TPMU_ATTEST_scalar_marshal, sizeof(src->attested), &src->attested, yaml_internal_TPMU_ATTEST_marshal)
     };
     rc = add_kvp_list(&doc, root, kvs, ARRAY_LEN(kvs));
     return_if_error(rc, "Could not add KVPs");
@@ -1312,12 +1309,11 @@ Tss2_MU_YAML_TPMS_ATTEST_Unmarshal(
 
     key_value parsed_data[] = {
         KVP_ADD_UNMARSHAL("magic", sizeof(tmp_dest.magic), &tmp_dest.magic, yaml_internal_TPM2_GENERATED_scalar_unmarshal),
-        KVP_ADD_UNMARSHAL("type", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_uint16_t_scalar_unmarshal),
         KVP_ADD_UNMARSHAL("qualifiedSigner", sizeof(tmp_dest.qualifiedSigner), &tmp_dest.qualifiedSigner, yaml_internal_TPM2B_NAME_unmarshal),
         KVP_ADD_UNMARSHAL("extraData", sizeof(tmp_dest.extraData), &tmp_dest.extraData, yaml_internal_TPM2B_DATA_unmarshal),
         KVP_ADD_UNMARSHAL("clockInfo", sizeof(tmp_dest.clockInfo), &tmp_dest.clockInfo, yaml_internal_TPMS_CLOCK_INFO_unmarshal),
         KVP_ADD_UNMARSHAL("firmwareVersion", sizeof(tmp_dest.firmwareVersion), &tmp_dest.firmwareVersion, yaml_internal_uint64_t_scalar_unmarshal),
-        KVP_ADD_UNMARSHAL("attested", sizeof(tmp_dest.attested), &tmp_dest.attested, yaml_internal_TPMU_ATTEST_unmarshal)
+        KVPU_ADD_UNMARSHAL("attested", sizeof(tmp_dest.type), &tmp_dest.type, yaml_internal_TPMU_ATTEST_scalar_unmarshal, sizeof(tmp_dest.attested), &tmp_dest.attested, yaml_internal_TPMU_ATTEST_unmarshal)
     };
 
     TSS2_RC rc = yaml_parse(yaml, yaml_len, parsed_data, ARRAY_LEN(parsed_data));
