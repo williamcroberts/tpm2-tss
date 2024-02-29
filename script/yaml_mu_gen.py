@@ -4,6 +4,7 @@ import bisect
 import copy
 import contextlib
 import inspect
+from fuzzywuzzy import fuzz
 import os
 import tpm2_pytss
 import subprocess
@@ -65,6 +66,9 @@ class _CMagic(object):
 
 
 class CType(_CMagic):
+    def __init__(self, name: str):
+        self._name = name
+
     @property
     def name(self):
         return self._name
@@ -72,8 +76,8 @@ class CType(_CMagic):
 
 class CComplex(CType):
     def __init__(self, name: str, fields: dict):
-        self._name = name
         self._fields = fields
+        super().__init__(name)
 
     @property
     def fields(self) -> dict[str, CType]:
@@ -122,9 +126,10 @@ class CUnion(CComplex):
 
 class CArray(CType):
     def __init__(self, name: str, base_type: "CScalar"):
-        # name keeps it distinct from the base type ie UINT8 vs UINT8[]
-        self._name = f"{name}[]"
         self._scalar = base_type
+
+        # name keeps it distinct from the base type ie UINT8 vs UINT8[]
+        super().__init__(f"{name}[]")
 
     @property
     def scalar(self) -> "CScalar":
@@ -136,14 +141,27 @@ class CScalar(CType):
     def alias(self) -> Optional["CScalar"]:
         return self._alias
 
-    def __init__(self, name: str, size: int, signed: bool, alias: str = None):
-        self._name = name
+    def __init__(
+        self,
+        name: str,
+        size: int,
+        signed: bool,
+        alias: str = None,
+        constants: list["CDefine"] = None,
+    ):
         self._size = size
         self._signed = signed
         self._alias = None if name == alias else alias
+        self._constants = constants
+
+        super().__init__(name)
 
     def __repr__(self) -> str:
         return f"{self.name} : {self.alias}"
+
+    @property
+    def constants(self):
+        return self._constants
 
     @property
     def size(self):
@@ -152,6 +170,13 @@ class CScalar(CType):
     @property
     def signed(self):
         return self._signed
+
+    def morph(self, new_name: str, constants: list["CDefine"] = None) -> CType:
+        deepcopy = copy.deepcopy(self)
+        deepcopy._name = new_name
+        if constants:
+            deepcopy._constants = constants
+        return deepcopy
 
 
 class CDefine(CType):
@@ -189,7 +214,8 @@ class CTypeParser(object):
             if not value_match:
                 continue
 
-            defines[m[0]] = CDefine(m[0], int(value_match.group(0), base=0))
+            value = int(value_match.group(0), 0)
+            defines[m[0]] = CDefine(m[0], value)
 
         return defines
 
@@ -260,11 +286,32 @@ class CTypeParser(object):
                     field_map[field_name] = resolved_type
         return struct_name, field_map
 
+    @staticmethod
+    def _find_constants(type_name: str, c_defines: dict[str, CDefine]) -> list[CDefine]:
+        # the constants after filtering, remove things like: reserved, first, last, mask, shift, etc
+        def const_filter(c, r):
+            filter_list = ["reserved", "first", "last", "mask", "shift", "error"]
+            result = (
+                r >= 80
+                and len(os.path.commonprefix((type_name, c.name))) > 8
+                and not any(substring in c.name.lower() for substring in filter_list)
+            )
+            return result
+
+        matching_ratios = [
+            (candidate, fuzz.partial_ratio(type_name, candidate.name))
+            for candidate in c_defines.values()
+        ]
+        matches = [c for c, r in matching_ratios if const_filter(c, r)]
+        return matches
+
     def parse(self) -> dict:
         preprocessed_code = self._run_cpp()
 
         parser = pycparser.c_parser.CParser()
         ast = parser.parse(preprocessed_code, filename=self.include_path)
+
+        c_defines = self._get_defines()
 
         seen = {
             "int": CScalar("int", size=-1, signed=True),
@@ -299,14 +346,7 @@ class CTypeParser(object):
             elif isinstance(node, pycparser.c_ast.Typedef):
                 if isinstance(node.type, pycparser.c_ast.TypeDecl):
                     type_name = node.name
-                    
-                    # TODO TODO LOOK THOUGH THE constants (#defines) and:
-                    # 1. if a type prefix has constants, associate it to that type
-                    # 2. if a tyepe resolves somewhere along the line to something with a prefix, stop it there.
-                    #    Example: TPMI_ALG_HASH -> TPMI_ALG_ID 
-                    
-                    if type_name == "TPMI_ALG_HASH":
-                        pass
+
                     # if type_name.startswith("TPM2B_"):
                     aliases = getattr(node.type.type, "names", None)
                     if aliases and type_name not in aliases:
@@ -323,10 +363,19 @@ class CTypeParser(object):
                         if isinstance(resolved, CComplex):
                             got = resolved.morph(new_name=type_name)
                         else:
-                            # ie a UINT8 is a uint8_t
-                            # TODO we don't want to resolve thiings that possibly
-                            # scalar like TPM2_ALG_ID
-                            got = resolved
+                            # if it resolved to a CScalar, does it have constants associated, if it does
+                            # we don't want it to resolve to its most basic type as we have special
+                            # handling
+                            matches = self._find_constants(type_name, c_defines)
+                            if matches:
+                                # if so, we don't resolve it the most basic scalar, but we can
+                                # copy the details on the resolved type for signed, etc
+                                got = resolved.morph(type_name, constants=matches)
+                            else:
+                                # ie a UINT8 is a uint8_t
+                                # TODO we don't want to resolve thiings that possibly
+                                # scalar like TPM2_ALG_ID
+                                got = resolved
                         seen[type_name] = got
 
         self._type_map = seen

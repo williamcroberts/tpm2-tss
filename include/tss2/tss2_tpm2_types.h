@@ -717,7 +717,7 @@ typedef uint32_t TPMA_ALGORITHM;
 /* Definition of UINT32 TPMA_OBJECT Bits */
 typedef uint32_t TPMA_OBJECT;
 
-#define TPMA_OBJECT_RESERVED1_MASK       ((TPMA_OBJECT) 0x00000001) /* shall be zero */
+#define os       ((TPMA_OBJECT) 0x00000001) /* shall be zero */
 #define TPMA_OBJECT_FIXEDTPM             ((TPMA_OBJECT) 0x00000002) /* SET 1 The hierarchy of the object as indicated by its Qualified Name may not change. CLEAR 0 The hierarchy of the object may change as a result of this object or an ancestor key being duplicated for use in another hierarchy. */
 #define TPMA_OBJECT_STCLEAR              ((TPMA_OBJECT) 0x00000004) /* SET 1 Previously saved contexts of this object may not be loaded after StartupCLEAR. CLEAR 0 Saved contexts of this object may be used after a ShutdownSTATE and subsequent Startup. */
 #define TPMA_OBJECT_RESERVED2_MASK       ((TPMA_OBJECT) 0x00000008) /* shall be zero */
