@@ -13,7 +13,7 @@ import pycparser
 import re
 import sys
 import tempfile
-from typing import Optional
+from typing import Optional, Dict, List
 import textwrap
 from tpm2_pytss.types import TPM2B_SIMPLE_OBJECT
 from contextlib import ExitStack
@@ -80,7 +80,7 @@ class CComplex(CType):
         super().__init__(name)
 
     @property
-    def fields(self) -> dict[str, CType]:
+    def fields(self) -> Dict[str, CType]:
         return self._fields
 
     @property
@@ -147,7 +147,7 @@ class CScalar(CType):
         size: int,
         signed: bool,
         alias: str = None,
-        constants: list["CDefine"] = None,
+        constants: List["CDefine"] = None,
     ):
         self._size = size
         self._signed = signed
@@ -174,7 +174,7 @@ class CScalar(CType):
     def get_base_type(self):
         return f'{"u" if self.signed else ""}int{self._size * 8}_t'
 
-    def morph(self, new_name: str, constants: list["CDefine"] = None) -> CType:
+    def morph(self, new_name: str, constants: List["CDefine"] = None) -> CType:
         deepcopy = copy.deepcopy(self)
         deepcopy._name = new_name
         if constants:
@@ -267,8 +267,8 @@ class CTypeParser(object):
 
     @staticmethod
     def _parse_struct_decl(
-        decl: pycparser.c_ast.Struct, seen: dict[str, CType]
-    ) -> dict[str, CType]:
+        decl: pycparser.c_ast.Struct, seen: Dict[str, CType]
+    ) -> Dict[str, CType]:
         struct_name = decl.name
         field_map = {}
 
@@ -289,7 +289,7 @@ class CTypeParser(object):
         return struct_name, field_map
 
     @staticmethod
-    def _find_constants(type_name: str, c_defines: dict[str, CDefine]) -> list[CDefine]:
+    def _find_constants(type_name: str, c_defines: Dict[str, CDefine]) -> List[CDefine]:
         # the constants after filtering, remove things like: reserved, first, last, mask, shift, etc
         def const_filter(c, r):
             filter_list = ["reserved", "first", "last", "mask", "shift", "error"]
@@ -307,7 +307,7 @@ class CTypeParser(object):
         matches = [c for c, r in matching_ratios if const_filter(c, r)]
         return matches
 
-    def parse(self) -> dict:
+    def parse(self) -> None:
         preprocessed_code = self._run_cpp()
 
         parser = pycparser.c_parser.CParser()
@@ -382,7 +382,7 @@ class CTypeParser(object):
 
         self._type_map = seen
 
-    def get_type_map(self, ctype: CType = None) -> dict[str, CType]:
+    def get_type_map(self, ctype: CType = None) -> Dict[str, CType]:
         if ctype:
             return {
                 key: value
@@ -559,7 +559,7 @@ def callable_tpm2b_test_list():
 
 
 def generate_simple_tpm2bs(
-    cprsr: CTypeParser, proj_root: str, needed_protos: list[str]
+    cprsr: CTypeParser, proj_root: str, needed_protos: List[str]
 ):
     epilogue = textwrap.dedent(
         r"""/* SPDX-License-Identifier: BSD-2-Clause */
@@ -762,8 +762,8 @@ def generate_complex_code_gen(
     proj_root: str,
     file_name: str,
     prefix: str,
-    needed_protos: list[str],
-    needed_leafs: list[str],
+    needed_protos: List[str],
+    needed_leafs: List[str],
 ):
     epilogue = textwrap.dedent(
         """    /* SPDX-License-Identifier: BSD-2-Clause */
@@ -921,7 +921,7 @@ def generate_complex_code_gen(
             f.write(fmt)
 
 
-def get_friendly_constants(scalar: CScalar) -> dict[str, int]:
+def get_friendly_constants(scalar: CScalar) -> Dict[str, int]:
 
     # process these per the JSON spec 2.1.3
     friendly = {}
@@ -944,7 +944,7 @@ def get_comparison_operator(number: int) -> str:
     return "&" if number > 0 and (number &(number -1)) == 0 else "=="
 
 
-def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
+def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: List[str]):
     spdx = "/* SPDX-License-Identifier: BSD-2-Clause */"
 
     hdr_prologue = textwrap.dedent(
@@ -1230,7 +1230,7 @@ def generate_leafs(cprsr: CTypeParser, proj_root: str, needed_leafs: list[str]):
         hdr_file.write(hdr_epilogue)
 
 
-def generate_protos(proj_root: str, needed_protos: list[str]):
+def generate_protos(proj_root: str, needed_protos: List[str]):
     prologue = textwrap.dedent(
         """
     /* SPDX-License-Identifier: BSD-2-Clause */
